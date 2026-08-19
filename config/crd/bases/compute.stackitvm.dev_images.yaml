@@ -1,0 +1,289 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: images.compute.stackitvm.dev
+spec:
+  group: compute.stackitvm.dev
+  names:
+    kind: Image
+    listKind: ImageList
+    plural: images
+    singular: image
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.imageId
+      name: ImageId
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Image is the Schema for the images API and represents the lifecycle of a
+          single STACKIT image, or a reference to one that already exists.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ImageSpec defines the desired state of a STACKIT image.
+
+              Creating an image only registers its metadata in STACKIT and returns an
+              upload URL (reflected in status.uploadUrl); the operator has no
+              declarative way to upload the image bytes themselves, so the image stays
+              not-Ready until they are uploaded out-of-band and STACKIT reports the
+              image as available. Most real usage is expected to reference an
+              already-prepared image via spec.existingId instead of creating one.
+            properties:
+              checksum:
+                description: |-
+                  Checksum verifies the uploaded image data. Only used at creation
+                  time.
+                properties:
+                  algorithm:
+                    description: Algorithm used for the checksum. One of "md5", "sha512".
+                    enum:
+                    - md5
+                    - sha512
+                    type: string
+                  digest:
+                    description: Digest is the hex-encoded checksum of the image data.
+                    pattern: ^[0-9a-f]+$
+                    type: string
+                required:
+                - algorithm
+                - digest
+                type: object
+              config:
+                description: Config sets the image's boot/device configuration.
+                properties:
+                  architecture:
+                    description: Architecture of the image's CPU. One of "arm64",
+                      "x86".
+                    type: string
+                  bootMenu:
+                    description: BootMenu enables the BIOS boot menu.
+                    type: boolean
+                  cdromBus:
+                    description: CdromBus sets the CDROM bus controller type, e.g.
+                      "virtio".
+                    type: string
+                  diskBus:
+                    description: DiskBus sets the disk bus controller type, e.g. "virtio".
+                    type: string
+                  nicModel:
+                    description: NicModel sets the virtual NIC model, e.g. "virtio".
+                    type: string
+                  operatingSystem:
+                    description: |-
+                      OperatingSystem enables OS-specific optimizations. One of "windows",
+                      "linux".
+                    type: string
+                  operatingSystemDistro:
+                    description: OperatingSystemDistro is the OS distribution, e.g.
+                      "ubuntu".
+                    type: string
+                  operatingSystemVersion:
+                    description: OperatingSystemVersion is the OS version, e.g. "22.04".
+                    type: string
+                  rescueBus:
+                    description: |-
+                      RescueBus sets the device bus used when the image is used as a rescue
+                      image, e.g. "virtio".
+                    type: string
+                  rescueDevice:
+                    description: |-
+                      RescueDevice sets the device used when the image is used as a rescue
+                      image. One of "cdrom", "disk".
+                    type: string
+                  secureBoot:
+                    description: SecureBoot enables Secure Boot.
+                    type: boolean
+                  uefi:
+                    description: Uefi configures UEFI boot.
+                    type: boolean
+                  videoModel:
+                    description: VideoModel sets the graphics device model, e.g. "virtio".
+                    type: string
+                  virtioScsi:
+                    description: |-
+                      VirtioScsi enables VirtIO SCSI for block device access instead of
+                      VirtIO Block.
+                    type: boolean
+                type: object
+              diskFormat:
+                description: DiskFormat of the image. One of "raw", "qcow2", "iso".
+                enum:
+                - raw
+                - qcow2
+                - iso
+                type: string
+              existingId:
+                description: |-
+                  ExistingID references an image that already exists in STACKIT by its
+                  UUID. When set, the operator only observes the image: it never
+                  creates, updates, or deletes it, and never adds a finalizer. All other
+                  spec fields except ProjectId/Region are ignored. Changing this field
+                  after the resource has already been created or adopted is unsupported.
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels are applied to the image as STACKIT resource labels.
+                type: object
+              minDiskSize:
+                description: |-
+                  MinDiskSize is the minimum disk size in GB required to boot the
+                  image.
+                format: int64
+                type: integer
+              minRam:
+                description: MinRam is the minimum RAM in MB required to boot the
+                  image.
+                format: int64
+                type: integer
+              name:
+                description: |-
+                  Name of the image as it will appear in STACKIT. Defaults to the
+                  resource's metadata.name when unset.
+                type: string
+              projectId:
+                description: ProjectId is the UUID of the STACKIT project the image
+                  belongs to.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              protected:
+                description: Protected prevents the image from being deleted.
+                type: boolean
+              region:
+                description: Region the image is created in, e.g. "eu01".
+                minLength: 1
+                type: string
+            required:
+            - diskFormat
+            - projectId
+            - region
+            type: object
+          status:
+            description: ImageStatus reflects the last observed state of a STACKIT
+              image.
+            properties:
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the
+                  image's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              imageId:
+                description: |-
+                  ImageId is the UUID of the image in STACKIT, whether created by this
+                  resource or adopted via spec.existingId.
+                type: string
+              importProgress:
+                description: ImportProgress indicates image import progress in percent.
+                format: int64
+                type: integer
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent spec generation reconciled by
+                  the controller.
+                format: int64
+                type: integer
+              size:
+                description: Size currently observed on the image in STACKIT, in bytes.
+                format: int64
+                type: integer
+              state:
+                description: |-
+                  State mirrors the STACKIT image status, e.g. AVAILABLE, CREATING,
+                  ERROR.
+                type: string
+              uploadUrl:
+                description: |-
+                  UploadUrl is the signed URL image bytes must be PUT to after
+                  creation. Only populated immediately after creation; not re-fetched
+                  afterwards.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

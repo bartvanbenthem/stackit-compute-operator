@@ -1,0 +1,41 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stackit-vm-operator-manager-role
+rules:
+- apiGroups:
+  - compute.stackitvm.dev
+  resources:
+  - images
+  - networks
+  - servers
+  - volumes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - compute.stackitvm.dev
+  resources:
+  - images/finalizers
+  - networks/finalizers
+  - servers/finalizers
+  - volumes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - compute.stackitvm.dev
+  resources:
+  - images/status
+  - networks/status
+  - servers/status
+  - volumes/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,313 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: servers.compute.stackitvm.dev
+spec:
+  group: compute.stackitvm.dev
+  names:
+    kind: Server
+    listKind: ServerList
+    plural: servers
+    singular: server
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.powerStatus
+      name: Power
+      type: string
+    - jsonPath: .spec.machineType
+      name: MachineType
+      type: string
+    - jsonPath: .status.serverId
+      name: ServerId
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Server is the Schema for the servers API and represents the lifecycle of a
+          single STACKIT Compute Engine server (virtual machine).
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ServerSpec defines the desired state of a STACKIT Compute Engine server
+              (virtual machine).
+            properties:
+              availabilityZone:
+                description: |-
+                  AvailabilityZone the server is placed in, e.g. "eu01-1". If unset,
+                  STACKIT chooses one automatically.
+                type: string
+              bootVolume:
+                description: |-
+                  BootVolume configures the server's root volume created from ImageId
+                  or ImageRef. Ignored (Size/PerformanceClass) when BootVolumeRef is
+                  set, since the volume already exists in that case.
+                properties:
+                  deleteOnTermination:
+                    description: |-
+                      DeleteOnTermination controls whether the boot volume is deleted
+                      together with the server. STACKIT defaults this to true when unset.
+                    type: boolean
+                  performanceClass:
+                    description: PerformanceClass of the boot volume, e.g. "storage_premium_perf1".
+                    type: string
+                  size:
+                    description: |-
+                      Size of the boot volume in GB. Defaults to the image's minimum disk
+                      size when unset.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                type: object
+              bootVolumeRef:
+                description: |-
+                  BootVolumeRef references an existing Volume resource to boot from
+                  instead of creating a new boot volume from ImageId/ImageRef. The
+                  referenced Volume must already exist (be Ready) before the server can
+                  be created.
+                properties:
+                  name:
+                    description: Name of the referenced object.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              imageId:
+                description: |-
+                  ImageId is the UUID of the image the boot volume is created from.
+                  Mutually exclusive with ImageRef; exactly one of the two must be set.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              imageRef:
+                description: |-
+                  ImageRef references an Image resource whose status.imageId is used
+                  instead of ImageId. Mutually exclusive with ImageId; exactly one of
+                  the two must be set.
+                properties:
+                  name:
+                    description: Name of the referenced object.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              keypairName:
+                description: |-
+                  KeypairName is the name of an existing SSH keypair to inject into the
+                  server.
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels are applied to the server as STACKIT resource
+                  labels.
+                type: object
+              machineType:
+                description: MachineType (flavor) of the server, e.g. "c1.2".
+                minLength: 1
+                type: string
+              name:
+                description: |-
+                  Name of the server as it will appear in STACKIT. Defaults to the
+                  resource's metadata.name when unset.
+                type: string
+              networkId:
+                description: |-
+                  NetworkId is the UUID of the network the server's primary NIC is
+                  attached to. Mutually exclusive with NetworkRef; exactly one of the
+                  two must be set.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              networkRef:
+                description: |-
+                  NetworkRef references a Network resource whose status.networkId is
+                  used instead of NetworkId. Mutually exclusive with NetworkId; exactly
+                  one of the two must be set.
+                properties:
+                  name:
+                    description: Name of the referenced object.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              powerState:
+                default: Active
+                description: |-
+                  PowerState is the desired power state of the server. Changing this
+                  field starts or stops the server without recreating it.
+                enum:
+                - Active
+                - Inactive
+                type: string
+              projectId:
+                description: ProjectId is the UUID of the STACKIT project the server
+                  belongs to.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              region:
+                description: Region the server is created in, e.g. "eu01".
+                minLength: 1
+                type: string
+              securityGroups:
+                description: |-
+                  SecurityGroups is a list of security group IDs attached to the
+                  server's NIC on creation.
+                items:
+                  type: string
+                type: array
+              serviceAccountMails:
+                description: |-
+                  ServiceAccountMails lists STACKIT service account emails attached to
+                  the server.
+                items:
+                  type: string
+                type: array
+              userData:
+                description: |-
+                  UserData is cloud-init user data injected into the server at boot. It
+                  is base64-encoded by the controller before being sent to STACKIT.
+                type: string
+            required:
+            - machineType
+            - projectId
+            - region
+            type: object
+          status:
+            description: |-
+              ServerStatus reflects the last observed state of a STACKIT Compute Engine
+              server.
+            properties:
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the
+                  server's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              machineType:
+                description: MachineType currently observed on the server in STACKIT.
+                type: string
+              nics:
+                description: Nics lists the network interfaces attached to the server.
+                items:
+                  description: NicStatus mirrors a network interface attached to the
+                    server.
+                  properties:
+                    ipv4:
+                      type: string
+                    ipv6:
+                      type: string
+                    mac:
+                      type: string
+                    networkId:
+                      type: string
+                  type: object
+                type: array
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent spec generation reconciled by
+                  the controller.
+                format: int64
+                type: integer
+              powerStatus:
+                description: |-
+                  PowerStatus mirrors the STACKIT server power status, e.g. RUNNING,
+                  STOPPED.
+                type: string
+              serverId:
+                description: |-
+                  ServerId is the UUID assigned by STACKIT once the server has been
+                  created.
+                type: string
+              state:
+                description: |-
+                  State mirrors the STACKIT server status, e.g. ACTIVE, INACTIVE,
+                  CREATING, ERROR.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

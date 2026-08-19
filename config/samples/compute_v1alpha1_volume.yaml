@@ -1,0 +1,16 @@
+apiVersion: compute.stackitvm.dev/v1alpha1
+kind: Volume
+metadata:
+  name: web-01-boot
+spec:
+  projectId: 11111111-1111-1111-1111-111111111111
+  region: eu01
+  availabilityZone: eu01-1
+  size: 32
+  bootable: true
+  source:
+    id: 22222222-2222-2222-2222-222222222222
+    type: image
+  labels:
+    environment: dev
+    team: platform

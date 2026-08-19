@@ -1,0 +1,5 @@
+resources:
+  - bases/compute.stackitvm.dev_servers.yaml
+  - bases/compute.stackitvm.dev_volumes.yaml
+  - bases/compute.stackitvm.dev_images.yaml
+  - bases/compute.stackitvm.dev_networks.yaml

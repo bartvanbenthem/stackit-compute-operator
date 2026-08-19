@@ -1,0 +1,246 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: networks.compute.stackitvm.dev
+spec:
+  group: compute.stackitvm.dev
+  names:
+    kind: Network
+    listKind: NetworkList
+    plural: networks
+    singular: network
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.networkId
+      name: NetworkId
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Network is the Schema for the networks API and represents the lifecycle
+          of a single STACKIT network, or a reference to one that already exists.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NetworkSpec defines the desired state of a STACKIT network.
+            properties:
+              dhcp:
+                description: Dhcp enables or disables DHCP for the network.
+                type: boolean
+              existingId:
+                description: |-
+                  ExistingID references a network that already exists in STACKIT by its
+                  UUID. When set, the operator only observes the network: it never
+                  creates, updates, or deletes it, and never adds a finalizer. All other
+                  spec fields except ProjectId/Region are ignored. Changing this field
+                  after the resource has already been created or adopted is unsupported.
+                type: string
+              ipv4:
+                description: |-
+                  Ipv4 configures the network's IPv4 subnet. Only used at creation
+                  time; STACKIT does not support changing a network's subnet
+                  afterwards.
+                properties:
+                  nameservers:
+                    description: Nameservers lists DNS servers for the subnet.
+                    items:
+                      type: string
+                    type: array
+                  prefixLength:
+                    description: PrefixLength of the auto-allocated IPv4 subnet, e.g.
+                      24.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  vpcNetworkRangeId:
+                    description: |-
+                      VpcNetworkRangeId is the UUID of the VPC network range the subnet is
+                      allocated from.
+                    type: string
+                required:
+                - prefixLength
+                type: object
+              ipv6:
+                description: |-
+                  Ipv6 configures the network's IPv6 subnet. Only used at creation
+                  time; STACKIT does not support changing a network's subnet
+                  afterwards.
+                properties:
+                  nameservers:
+                    description: Nameservers lists DNS servers for the subnet.
+                    items:
+                      type: string
+                    type: array
+                  prefixLength:
+                    description: PrefixLength of the auto-allocated IPv6 subnet, e.g.
+                      64.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  vpcNetworkRangeId:
+                    description: |-
+                      VpcNetworkRangeId is the UUID of the VPC network range the subnet is
+                      allocated from.
+                    type: string
+                required:
+                - prefixLength
+                type: object
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels are applied to the network as STACKIT resource
+                  labels.
+                type: object
+              name:
+                description: |-
+                  Name of the network as it will appear in STACKIT. Defaults to the
+                  resource's metadata.name when unset.
+                type: string
+              projectId:
+                description: ProjectId is the UUID of the STACKIT project the network
+                  belongs to.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              region:
+                description: Region the network is created in, e.g. "eu01".
+                minLength: 1
+                type: string
+              routed:
+                description: |-
+                  Routed indicates whether the network is accessible from other
+                  networks.
+                type: boolean
+              routingTableId:
+                description: |-
+                  RoutingTableId is the UUID of the routing table attached to the
+                  network.
+                type: string
+              vpcId:
+                description: VpcId is the UUID of the STACKIT VPC the network belongs
+                  to.
+                type: string
+            required:
+            - projectId
+            - region
+            type: object
+          status:
+            description: NetworkStatus reflects the last observed state of a STACKIT
+              network.
+            properties:
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the
+                  network's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              ipv4Gateway:
+                description: Ipv4Gateway is the IPv4 gateway observed on the network.
+                type: string
+              ipv4Prefixes:
+                description: Ipv4Prefixes lists the IPv4 subnet prefixes observed
+                  on the network.
+                items:
+                  type: string
+                type: array
+              networkId:
+                description: |-
+                  NetworkId is the UUID of the network in STACKIT, whether created by
+                  this resource or adopted via spec.existingId.
+                type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent spec generation reconciled by
+                  the controller.
+                format: int64
+                type: integer
+              state:
+                description: |-
+                  State mirrors the STACKIT network status, e.g. CREATED, UPDATED,
+                  FAILED.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

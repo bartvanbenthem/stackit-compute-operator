@@ -1,0 +1,6 @@
+namespace: stackit-vm-operator-system
+
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager

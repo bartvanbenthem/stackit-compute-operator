@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: system
+  labels:
+    app.kubernetes.io/name: stackit-vm-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stackit-vm-operator-controller-manager
+  namespace: system
+  labels:
+    app.kubernetes.io/name: stackit-vm-operator
+    control-plane: controller-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+    spec:
+      serviceAccountName: stackit-vm-operator-controller-manager
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: manager
+          image: controller:latest
+          args:
+            - --leader-elect
+            - --health-probe-bind-address=:8081
+          env:
+            # Key-flow authentication: a STACKIT service account key and its
+            # matching private key, mounted from the "stackit-credentials"
+            # Secret below. See README.md for how to create that Secret.
+            - name: STACKIT_SERVICE_ACCOUNT_KEY_PATH
+              value: /etc/stackit/credentials/service-account-key.json
+            - name: STACKIT_PRIVATE_KEY_PATH
+              value: /etc/stackit/credentials/private-key.pem
+          volumeMounts:
+            - name: stackit-credentials
+              mountPath: /etc/stackit/credentials
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+      volumes:
+        - name: stackit-credentials
+          secret:
+            secretName: stackit-credentials
+      terminationGracePeriodSeconds: 10
