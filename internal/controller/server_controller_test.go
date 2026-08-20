@@ -317,6 +317,38 @@ func TestReconcileCreate_ResolvesBootVolumeRef(t *testing.T) {
 	}
 }
 
+// TestReconcileCreate_BootVolumeRefWithoutImage verifies that
+// spec.bootVolumeRef alone, with neither spec.imageId nor spec.imageRef
+// set, is enough to create the server - per BootVolumeRef's doc comment in
+// server_types.go, an existing boot Volume makes the image unnecessary.
+func TestReconcileCreate_BootVolumeRefWithoutImage(t *testing.T) {
+	volume := &computev1alpha1.Volume{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-boot-volume", Namespace: "default"},
+		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID},
+	}
+	server := newTestServer("srv", func(s *computev1alpha1.Server) {
+		controllerutil.AddFinalizer(s, serverFinalizer)
+		s.Spec.ImageId = ""
+		s.Spec.BootVolumeRef = &computev1alpha1.LocalObjectReference{Name: "my-boot-volume"}
+	})
+
+	mock := &iaas.DefaultAPIServiceMock{}
+	created := false
+	createFn := func(r iaas.ApiCreateServerRequest) (*iaas.Server, error) {
+		created = true
+		return &iaas.Server{Id: utils.Ptr(testServerID), Status: utils.Ptr("CREATING"), MachineType: "c1.2"}, nil
+	}
+	mock.CreateServerExecuteMock = &createFn
+
+	r := newReconciler(t, mock, server, volume)
+	if _, err := r.Reconcile(context.Background(), reconcileRequest(server)); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if !created {
+		t.Error("CreateServer was not called (bootVolumeRef alone should be enough without an image)")
+	}
+}
+
 // --- existing: state handling ---
 
 func TestReconcileExisting_Transitional(t *testing.T) {

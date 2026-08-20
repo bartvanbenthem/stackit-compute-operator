@@ -17,17 +17,20 @@ import (
 // non-empty, is the ID of an already-existing Volume (resolved from
 // spec.bootVolumeRef) to boot from instead of creating a new boot volume
 // from resolvedImageID; in that case spec.bootVolume.size/performanceClass
-// are ignored, since the volume already exists.
+// are ignored, since the volume already exists, and resolvedImageID may be
+// empty (STACKIT's imageId is omitted rather than sent as an empty string).
 func BuildCreatePayload(name string, spec computev1alpha1.ServerSpec, resolvedImageID, resolvedNetworkID, resolvedBootVolumeID string) iaas.CreateServerPayload {
 	payload := iaas.CreateServerPayload{
 		Name:        name,
 		MachineType: spec.MachineType,
-		ImageId:     utils.Ptr(resolvedImageID),
 		Networking: iaas.CreateServerPayloadAllOfNetworking{
 			CreateServerNetworking: &iaas.CreateServerNetworking{
 				NetworkId: utils.Ptr(resolvedNetworkID),
 			},
 		},
+	}
+	if resolvedImageID != "" {
+		payload.ImageId = utils.Ptr(resolvedImageID)
 	}
 
 	if spec.AvailabilityZone != "" {

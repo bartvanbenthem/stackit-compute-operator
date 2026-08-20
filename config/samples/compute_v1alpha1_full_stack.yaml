@@ -1,0 +1,71 @@
+# End-to-end example: creates a Network, an Image, a Volume, and a Server
+# that boots from that Volume and attaches to that Network, all owned by
+# this operator (nothing pre-existing/adopted via spec.existingId).
+#
+# The Server wires itself to the Network/Volume via networkRef/bootVolumeRef
+# (see the "Referencing Volume/Image/Network from Server" section in
+# README.md) rather than raw STACKIT IDs, so it waits until both are Ready
+# before it is created.
+#
+# The Image is included to show it created alongside the rest, but it is
+# NOT used as the Volume's source or the Server's boot image here: a freshly
+# created Image stays Ready=False/AwaitingUpload until its bytes are PUT to
+# status.uploadUrl out-of-band (see "Images and the upload-bytes gap" in
+# README.md), so it can't back a Volume/Server until that happens. Most real
+# usage instead references an already-uploaded image via spec.existingId.
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Network
+metadata:
+  name: prod-network
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  dhcp: true
+  routed: true
+  ipv4:
+    prefixLength: 24
+  labels:
+    environment: dev
+---
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Image
+metadata:
+  name: ubuntu-26-04
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  diskFormat: raw
+  labels:
+    environment: dev
+---
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Volume
+metadata:
+  name: web-01-boot
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  availabilityZone: eu01-1
+  size: 32
+  bootable: true
+  labels:
+    environment: dev
+    team: platform
+---
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Server
+metadata:
+  name: web-01
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  machineType: c1.2
+  availabilityZone: eu01-1
+  networkRef:
+    name: prod-network
+  bootVolumeRef:
+    name: web-01-boot
+  labels:
+    environment: dev
+    team: platform
+  powerState: Active

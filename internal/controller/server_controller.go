@@ -134,7 +134,8 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 // of spec.imageId or spec.imageRef. ready is false (with a nil error) when
 // a ref is set but the referenced Image doesn't exist yet or hasn't
 // populated status.imageId yet - that's a normal, retryable wait, not an
-// error.
+// error. Neither is required when spec.bootVolumeRef is set, since the
+// server then boots from that existing Volume instead of an image.
 func (r *ServerReconciler) resolveImageRef(ctx context.Context, server *computev1alpha1.Server) (id string, ready bool, err error) {
 	if server.Spec.ImageId != "" && server.Spec.ImageRef != nil {
 		return "", false, fmt.Errorf("spec.imageId and spec.imageRef are mutually exclusive")
@@ -152,6 +153,9 @@ func (r *ServerReconciler) resolveImageRef(ctx context.Context, server *computev
 	}
 	if server.Spec.ImageId != "" {
 		return server.Spec.ImageId, true, nil
+	}
+	if server.Spec.BootVolumeRef != nil {
+		return "", true, nil
 	}
 	return "", false, fmt.Errorf("one of spec.imageId or spec.imageRef must be set")
 }

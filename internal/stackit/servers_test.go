@@ -250,6 +250,25 @@ func TestBuildCreatePayload_ResolvedBootVolumeID(t *testing.T) {
 	}
 }
 
+func TestBuildCreatePayload_EmptyResolvedImageIDOmitsImageId(t *testing.T) {
+	// When booting from an existing Volume (resolvedBootVolumeID set) and no
+	// image was resolved, payload.ImageId must be nil rather than a pointer
+	// to an empty string - STACKIT's imageId has omitempty but *string
+	// omitempty only triggers on a nil pointer, so a Ptr("") would still be
+	// sent and rejected by its UUID validation.
+	spec := computev1alpha1.ServerSpec{
+		MachineType: "c1.2",
+		NetworkId:   "33333333-3333-3333-3333-333333333333",
+	}
+	resolvedBootVolumeID := "55555555-5555-5555-5555-555555555555"
+
+	payload := BuildCreatePayload("my-server", spec, "", spec.NetworkId, resolvedBootVolumeID)
+
+	if payload.ImageId != nil {
+		t.Errorf("ImageId = %v, want nil", payload.ImageId)
+	}
+}
+
 func TestBuildCreatePayload_BootVolumeOnlyDeleteOnTermination(t *testing.T) {
 	// A DeleteOnTermination-only BootVolumeSpec (size and class both zero)
 	// must still produce a BootVolume, since a nil *bool has meaning

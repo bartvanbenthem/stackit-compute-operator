@@ -60,7 +60,10 @@ creation time; if that resource isn't Ready yet, the Server just waits and
 retries (no error). Setting both a ref and its raw-ID counterpart (e.g. both
 `imageId` and `imageRef`) is a validation error surfaced as
 `Ready=False/InvalidReference` - only one of each pair is allowed. See
-[config/samples/compute_v1alpha1_server_with_refs.yaml](config/samples/compute_v1alpha1_server_with_refs.yaml).
+[config/samples/compute_v1alpha1_server_with_refs.yaml](config/samples/compute_v1alpha1_server_with_refs.yaml)
+for referencing already-existing resources, or
+[config/samples/compute_v1alpha1_full_stack.yaml](config/samples/compute_v1alpha1_full_stack.yaml)
+for a Network/Image/Volume/Server created together in one file.
 
 `bootVolumeRef` fixes a specific gap: without it, a server's boot volume is
 created implicitly as part of `CreateServerPayload` - a real STACKIT volume
