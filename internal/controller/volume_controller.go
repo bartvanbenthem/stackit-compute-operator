@@ -19,7 +19,7 @@ import (
 	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
 )
 
-const volumeFinalizer = "compute.stackitvm.dev/volume-finalizer"
+const volumeFinalizer = "compute.sostackit.dev/volume-finalizer"
 
 // volumeTransitionalStates are STACKIT volume states in which the
 // controller should only observe and requeue, without attempting further
@@ -38,9 +38,9 @@ type VolumeReconciler struct {
 	StackitClient *iaas.APIClient
 }
 
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=volumes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=volumes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=volumes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=volumes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=volumes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=volumes/finalizers,verbs=update
 
 // Reconcile drives a Volume towards the state described by its spec. When
 // spec.existingId is set, it only observes the referenced STACKIT volume

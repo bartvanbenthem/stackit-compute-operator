@@ -18,7 +18,7 @@ import (
 	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
 )
 
-const imageFinalizer = "compute.stackitvm.dev/image-finalizer"
+const imageFinalizer = "compute.sostackit.dev/image-finalizer"
 
 // ImageReconciler reconciles an Image object against the STACKIT Compute
 // Engine (IaaS) API.
@@ -34,9 +34,9 @@ type ImageReconciler struct {
 	StackitClient *iaas.APIClient
 }
 
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=images,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=images/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=images/finalizers,verbs=update
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=images,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=images/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=images/finalizers,verbs=update
 
 // Reconcile drives an Image towards the state described by its spec. When
 // spec.existingId is set, it only observes the referenced STACKIT image and

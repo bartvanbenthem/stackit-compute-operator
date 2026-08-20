@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: images.compute.stackitvm.dev
+  name: images.compute.sostackit.dev
 spec:
-  group: compute.stackitvm.dev
+  group: compute.sostackit.dev
   names:
     kind: Image
     listKind: ImageList

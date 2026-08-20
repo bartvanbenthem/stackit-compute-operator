@@ -1,6 +1,6 @@
 package v1alpha1
 
-// LocalObjectReference references another compute.stackitvm.dev object in
+// LocalObjectReference references another compute.sostackit.dev object in
 // the same namespace.
 type LocalObjectReference struct {
 	// Name of the referenced object.

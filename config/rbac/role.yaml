@@ -5,7 +5,7 @@ metadata:
   name: stackit-compute-operator-manager-role
 rules:
 - apiGroups:
-  - compute.stackitvm.dev
+  - compute.sostackit.dev
   resources:
   - images
   - networks
@@ -20,7 +20,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - compute.stackitvm.dev
+  - compute.sostackit.dev
   resources:
   - images/finalizers
   - networks/finalizers
@@ -29,7 +29,7 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - compute.stackitvm.dev
+  - compute.sostackit.dev
   resources:
   - images/status
   - networks/status

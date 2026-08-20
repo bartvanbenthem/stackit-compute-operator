@@ -1,4 +1,4 @@
-apiVersion: compute.stackitvm.dev/v1alpha1
+apiVersion: compute.sostackit.dev/v1alpha1
 kind: Volume
 metadata:
   name: web-01-boot

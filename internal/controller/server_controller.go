@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	serverFinalizer    = "compute.stackitvm.dev/server-finalizer"
+	serverFinalizer    = "compute.sostackit.dev/server-finalizer"
 	readyConditionType = "Ready"
 
 	pollInterval  = 10 * time.Second
@@ -47,9 +47,9 @@ type ServerReconciler struct {
 	StackitClient *iaas.APIClient
 }
 
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=servers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=servers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=servers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=servers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=servers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=servers/finalizers,verbs=update
 
 // Reconcile drives a Server towards the state described by its spec: create
 // it in STACKIT if it doesn't exist yet, keep its power state/machine

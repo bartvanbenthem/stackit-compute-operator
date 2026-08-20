@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: servers.compute.stackitvm.dev
+  name: servers.compute.sostackit.dev
 spec:
-  group: compute.stackitvm.dev
+  group: compute.sostackit.dev
   names:
     kind: Server
     listKind: ServerList

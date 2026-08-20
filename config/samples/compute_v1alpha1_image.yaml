@@ -1,7 +1,7 @@
 # Most real usage should prefer referencing an already-prepared image via
 # spec.existingId instead of creating one - see the "Images" section in
 # README.md for why (image bytes must be uploaded out-of-band).
-apiVersion: compute.stackitvm.dev/v1alpha1
+apiVersion: compute.sostackit.dev/v1alpha1
 kind: Image
 metadata:
   name: ubuntu-22-04

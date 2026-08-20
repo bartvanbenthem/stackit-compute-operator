@@ -1,4 +1,4 @@
-apiVersion: compute.stackitvm.dev/v1alpha1
+apiVersion: compute.sostackit.dev/v1alpha1
 kind: Network
 metadata:
   name: prod-network

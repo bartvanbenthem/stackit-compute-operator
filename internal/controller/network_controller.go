@@ -18,7 +18,7 @@ import (
 	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
 )
 
-const networkFinalizer = "compute.stackitvm.dev/network-finalizer"
+const networkFinalizer = "compute.sostackit.dev/network-finalizer"
 
 // networkTransitionalStates are STACKIT network states in which the
 // controller should only observe and requeue, without attempting further
@@ -35,9 +35,9 @@ type NetworkReconciler struct {
 	StackitClient *iaas.APIClient
 }
 
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=networks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=networks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=compute.stackitvm.dev,resources=networks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=networks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=networks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=compute.sostackit.dev,resources=networks/finalizers,verbs=update
 
 // Reconcile drives a Network towards the state described by its spec. When
 // spec.existingId is set, it only observes the referenced STACKIT network

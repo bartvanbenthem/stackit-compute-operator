@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: networks.compute.stackitvm.dev
+  name: networks.compute.sostackit.dev
 spec:
-  group: compute.stackitvm.dev
+  group: compute.sostackit.dev
   names:
     kind: Network
     listKind: NetworkList

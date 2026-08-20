@@ -1,6 +1,6 @@
 // Package v1alpha1 contains API Schema definitions for the compute v1alpha1 API group.
 // +kubebuilder:object:generate=true
-// +groupName=compute.stackitvm.dev
+// +groupName=compute.sostackit.dev
 package v1alpha1
 
 import (
@@ -10,7 +10,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects.
-	GroupVersion = schema.GroupVersion{Group: "compute.stackitvm.dev", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "compute.sostackit.dev", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

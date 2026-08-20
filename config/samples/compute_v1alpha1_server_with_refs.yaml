@@ -2,7 +2,7 @@
 # STACKIT IDs. imageRef/networkRef/bootVolumeRef are resolved to their
 # referenced resource's status.<x>Id once that resource is Ready; the
 # server is only created once all referenced resources are ready.
-apiVersion: compute.stackitvm.dev/v1alpha1
+apiVersion: compute.sostackit.dev/v1alpha1
 kind: Server
 metadata:
   name: web-02

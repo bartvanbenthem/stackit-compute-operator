@@ -11,13 +11,13 @@ Built on the [official STACKIT Go SDK](https://github.com/stackitcloud/stackit-s
 
 ## API
 
-`compute.stackitvm.dev/v1alpha1` defines `Server`, `Volume`, `Image`, and
+`compute.sostackit.dev/v1alpha1` defines `Server`, `Volume`, `Image`, and
 `Network`, see [api/v1alpha1](api/v1alpha1) and samples under
 [config/samples](config/samples). Each has a matching controller under
 [internal/controller](internal/controller) that follows the same pattern:
 
 - Creates the resource in STACKIT when its status ID is empty, using a
-  finalizer (e.g. `compute.stackitvm.dev/server-finalizer`) to guarantee
+  finalizer (e.g. `compute.sostackit.dev/server-finalizer`) to guarantee
   deletion on `kubectl delete`.
 - Mirrors STACKIT's observed status back onto `.status` and sets a `Ready`
   condition summarizing reconciliation state.
@@ -149,7 +149,7 @@ generated files must be hand-edited to match instead.
 ## Notes
 
 - The Go module path (`github.com/bartvanbenthem/stackit-compute-operator`) and
-  API group domain (`compute.stackitvm.dev`) are placeholders — rename them
+  API group domain (`compute.sostackit.dev`) are placeholders — rename them
   to match wherever this repo actually lives before publishing.
 - `go.sum` is not checked in; run `go mod tidy` once you have network access
   to populate it.

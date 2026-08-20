@@ -1,5 +1,5 @@
 // Command manager runs the stackit-compute-operator controller manager, which
-// reconciles compute.stackitvm.dev/v1alpha1 Server resources against the
+// reconciles compute.sostackit.dev/v1alpha1 Server resources against the
 // STACKIT Compute Engine (IaaS) API.
 package main
 
@@ -54,7 +54,7 @@ func main() {
 		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "stackit-compute-operator.compute.stackitvm.dev",
+		LeaderElectionID:       "stackit-compute-operator.compute.sostackit.dev",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
