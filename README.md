@@ -1,4 +1,4 @@
-# stackit-compute-operator
+# STACKIT Service Operator for Compute
 
 A Kubernetes operator that manages the lifecycle of [STACKIT](https://www.stackit.de/)
 Compute Engine resources through four custom resources: `Server`, `Volume`,
