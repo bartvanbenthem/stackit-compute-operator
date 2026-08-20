@@ -1,4 +1,4 @@
-namespace: stackit-vm-operator-system
+namespace: stackit-compute-operator-system
 
 resources:
   - ../crd

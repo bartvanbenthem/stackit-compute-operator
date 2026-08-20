@@ -1,4 +1,4 @@
-// Command manager runs the stackit-vm-operator controller manager, which
+// Command manager runs the stackit-compute-operator controller manager, which
 // reconciles compute.stackitvm.dev/v1alpha1 Server resources against the
 // STACKIT Compute Engine (IaaS) API.
 package main
@@ -19,9 +19,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	computev1alpha1 "github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1"
-	"github.com/bartvanbenthem/stackit-vm-operator/internal/controller"
-	"github.com/bartvanbenthem/stackit-vm-operator/internal/stackit"
+	computev1alpha1 "github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1"
+	"github.com/bartvanbenthem/stackit-compute-operator/internal/controller"
+	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
 )
 
 var (
@@ -54,7 +54,7 @@ func main() {
 		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "stackit-vm-operator.compute.stackitvm.dev",
+		LeaderElectionID:       "stackit-compute-operator.compute.stackitvm.dev",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

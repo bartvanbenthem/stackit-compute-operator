@@ -1,4 +1,4 @@
-# stackit-vm-operator
+# stackit-compute-operator
 
 A Kubernetes operator that manages the lifecycle of [STACKIT](https://www.stackit.de/)
 Compute Engine resources through four custom resources: `Server`, `Volume`,
@@ -90,7 +90,7 @@ namespace:
 
 ```bash
 kubectl create secret generic stackit-credentials \
-  --namespace stackit-vm-operator-system \
+  --namespace stackit-compute-operator-system \
   --from-file=service-account-key.json=./service-account-key.json \
   --from-file=private-key.pem=./private-key.pem
 ```
@@ -132,8 +132,8 @@ covered at the fake-client unit level only, not against envtest.
 To build and deploy the container image:
 
 ```bash
-make docker-build docker-push IMG=<registry>/stackit-vm-operator:tag
-make deploy IMG=<registry>/stackit-vm-operator:tag
+make docker-build docker-push IMG=<registry>/stackit-compute-operator:tag
+make deploy IMG=<registry>/stackit-compute-operator:tag
 ```
 
 `make manifests` / `make generate` regenerate the CRD YAML
@@ -148,7 +148,7 @@ generated files must be hand-edited to match instead.
 
 ## Notes
 
-- The Go module path (`github.com/bartvanbenthem/stackit-vm-operator`) and
+- The Go module path (`github.com/bartvanbenthem/stackit-compute-operator`) and
   API group domain (`compute.stackitvm.dev`) are placeholders — rename them
   to match wherever this repo actually lives before publishing.
 - `go.sum` is not checked in; run `go mod tidy` once you have network access

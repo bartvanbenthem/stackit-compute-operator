@@ -7,7 +7,7 @@ import (
 
 	iaas "github.com/stackitcloud/stackit-sdk-go/services/iaas/v2api"
 
-	computev1alpha1 "github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1"
+	computev1alpha1 "github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1"
 )
 
 const testImageID = "66666666-6666-6666-6666-666666666666"

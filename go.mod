@@ -1,4 +1,4 @@
-module github.com/bartvanbenthem/stackit-vm-operator
+module github.com/bartvanbenthem/stackit-compute-operator
 
 go 1.25
 

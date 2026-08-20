@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: stackit-vm-operator-leader-election-rolebinding
+  name: stackit-compute-operator-leader-election-rolebinding
   namespace: system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: stackit-vm-operator-leader-election-role
+  name: stackit-compute-operator-leader-election-role
 subjects:
   - kind: ServiceAccount
-    name: stackit-vm-operator-controller-manager
+    name: stackit-compute-operator-controller-manager
     namespace: system

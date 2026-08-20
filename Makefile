@@ -63,7 +63,7 @@ undeploy: ## Undeploy the controller from the cluster configured in ~/.kube/conf
 
 .PHONY: manifests
 manifests: ## Regenerate CRD YAML from Go type markers (requires controller-gen).
-	controller-gen crd rbac:roleName=stackit-vm-operator-manager-role paths="./..." output:crd:artifacts:config=config/crd/bases
+	controller-gen crd rbac:roleName=stackit-compute-operator-manager-role paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: ## Regenerate zz_generated.deepcopy.go from Go type markers (requires controller-gen).

@@ -4,8 +4,8 @@
 domain: stackitvm.dev
 layout:
 - go.kubebuilder.io/v4
-projectName: stackit-vm-operator
-repo: github.com/bartvanbenthem/stackit-vm-operator
+projectName: stackit-compute-operator
+repo: github.com/bartvanbenthem/stackit-compute-operator
 resources:
 - api:
     crdVersion: v1
@@ -14,6 +14,6 @@ resources:
   domain: stackitvm.dev
   group: compute
   kind: Server
-  path: github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1
+  path: github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

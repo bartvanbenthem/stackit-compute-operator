@@ -3,15 +3,15 @@ kind: Namespace
 metadata:
   name: system
   labels:
-    app.kubernetes.io/name: stackit-vm-operator
+    app.kubernetes.io/name: stackit-compute-operator
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stackit-vm-operator-controller-manager
+  name: stackit-compute-operator-controller-manager
   namespace: system
   labels:
-    app.kubernetes.io/name: stackit-vm-operator
+    app.kubernetes.io/name: stackit-compute-operator
     control-plane: controller-manager
 spec:
   replicas: 1
@@ -23,7 +23,7 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
-      serviceAccountName: stackit-vm-operator-controller-manager
+      serviceAccountName: stackit-compute-operator-controller-manager
       securityContext:
         runAsNonRoot: true
       containers:

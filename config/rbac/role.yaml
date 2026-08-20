@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: stackit-vm-operator-manager-role
+  name: stackit-compute-operator-manager-role
 rules:
 - apiGroups:
   - compute.stackitvm.dev

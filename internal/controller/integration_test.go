@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	computev1alpha1 "github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1"
+	computev1alpha1 "github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1"
 )
 
 // eventually polls cond until it returns true or timeout elapses, failing

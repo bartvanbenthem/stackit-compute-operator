@@ -1,12 +1,12 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: stackit-vm-operator-manager-rolebinding
+  name: stackit-compute-operator-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: stackit-vm-operator-manager-role
+  name: stackit-compute-operator-manager-role
 subjects:
   - kind: ServiceAccount
-    name: stackit-vm-operator-controller-manager
+    name: stackit-compute-operator-controller-manager
     namespace: system

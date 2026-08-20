@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	computev1alpha1 "github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1"
+	computev1alpha1 "github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1"
 )
 
 func TestIntegration_VolumeLifecycle(t *testing.T) {

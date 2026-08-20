@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	computev1alpha1 "github.com/bartvanbenthem/stackit-vm-operator/api/v1alpha1"
+	computev1alpha1 "github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1"
 )
 
 var (
