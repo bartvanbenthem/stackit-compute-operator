@@ -2,9 +2,9 @@
 
 A Kubernetes operator that manages the lifecycle of [STACKIT](https://www.stackit.de/)
 Compute Engine resources through four custom resources: `Server`, `Volume`,
-`Image`, and `Network`. It is scoped to Compute Engine (IaaS); STACKIT
-networks in the wider sense (routing, VPCs) beyond what these four resources
-cover remain out of scope for this version.
+`Image`, and `Network`. It's scoped to Compute Engine (IaaS) — broader
+STACKIT networking (routing, VPCs) beyond these four resources is out of
+scope for this version.
 
 Built on the [official STACKIT Go SDK](https://github.com/stackitcloud/stackit-sdk-go)
 (`services/iaas/v2api`).
@@ -12,17 +12,19 @@ Built on the [official STACKIT Go SDK](https://github.com/stackitcloud/stackit-s
 ## API
 
 `compute.sostackit.dev/v1alpha1` defines `Server`, `Volume`, `Image`, and
-`Network`, see [api/v1alpha1](api/v1alpha1) and samples under
-[config/samples](config/samples). Each has a matching controller under
-[internal/controller](internal/controller) that follows the same pattern:
+`Network` — see [api/v1alpha1](api/v1alpha1) for the types and
+[config/samples](config/samples) for examples. Each has a matching
+controller under [internal/controller](internal/controller) that follows
+the same pattern:
 
-- Creates the resource in STACKIT when its status ID is empty, using a
-  finalizer (e.g. `compute.sostackit.dev/server-finalizer`) to guarantee
-  deletion on `kubectl delete`.
-- Mirrors STACKIT's observed status back onto `.status` and sets a `Ready`
+- Creates the resource in STACKIT when its status ID is empty; a finalizer
+  (e.g. `compute.sostackit.dev/server-finalizer`) guarantees deletion
+  follows `kubectl delete`.
+- Mirrors STACKIT's observed status onto `.status` and sets a `Ready`
   condition summarizing reconciliation state.
 - Recreates the resource if it disappears from STACKIT out of band (owned
-  resources only - see "Existing resources" below).
+  resources only — see [Existing resources](#existing-resources-bring-your-own)
+  below).
 - Reconciles a limited set of drift (see each type's `_controller.go` for
   exactly which fields): e.g. Server reconciles `spec.machineType` (resize),
   `spec.powerState` (start/stop), and `spec.name`/`spec.labels` (update)
@@ -30,14 +32,14 @@ Built on the [official STACKIT Go SDK](https://github.com/stackitcloud/stackit-s
 
 ### Existing resources ("bring your own")
 
-`Volume`, `Image`, and `Network` each support an `spec.existingId` field. If
+`Volume`, `Image`, and `Network` each support a `spec.existingId` field. If
 set, the operator treats the resource as **not owned**: it only observes the
 STACKIT object at that ID (via `GET`) and never creates, updates, or
-deletes it, and never adds a finalizer - deleting the Kubernetes object is a
-pure no-op against STACKIT. Leave `existingId` unset for the operator to own
-the resource's full lifecycle instead. Changing `existingId` after a
-resource has already been created or adopted is unsupported (there is no
-webhook to guard against it).
+deletes it, and never adds a finalizer — deleting the Kubernetes object is a
+no-op against STACKIT. Leave `existingId` unset for the operator to own the
+resource's full lifecycle instead. Changing `existingId` after a resource
+has already been created or adopted is unsupported (there is no webhook to
+guard against it).
 
 ### Referencing Volume/Image/Network from Server
 
@@ -59,17 +61,14 @@ A ref is resolved to the referenced resource's `status.<x>Id` at server
 creation time; if that resource isn't Ready yet, the Server just waits and
 retries (no error). Setting both a ref and its raw-ID counterpart (e.g. both
 `imageId` and `imageRef`) is a validation error surfaced as
-`Ready=False/InvalidReference` - only one of each pair is allowed. See
+`Ready=False/InvalidReference` — only one of each pair is allowed. See
 [config/samples/compute_v1alpha1_server_with_refs.yaml](config/samples/compute_v1alpha1_server_with_refs.yaml)
-for referencing already-existing resources,
+for referencing already-existing resources, or
 [config/samples/compute_v1alpha1_full_stack.yaml](config/samples/compute_v1alpha1_full_stack.yaml)
-for a Network/Image/Volume/Server created together in one file, or
-[config/samples/compute_v1alpha1_full_stack_existing_image.yaml](config/samples/compute_v1alpha1_full_stack_existing_image.yaml)
-for the same, but adopting an already-available image via `existingId`
-instead of creating one and uploading its bytes.
+for a Network/Image/Volume/Server created together in one file.
 
 `bootVolumeRef` fixes a specific gap: without it, a server's boot volume is
-created implicitly as part of `CreateServerPayload` - a real STACKIT volume
+created implicitly as part of `CreateServerPayload` — a real STACKIT volume
 whose state (size, status) was previously invisible to Kubernetes and never
 reconciled. Using `bootVolumeRef` makes the boot volume a first-class
 `Volume` resource with its own status and drift reconciliation (e.g.
@@ -129,7 +128,7 @@ test-integration` additionally downloads envtest (a real `kube-apiserver` +
 through full lifecycles for `Server`, `Volume`, `Image`, and `Network`
 (create → ready → delete; `Server` also covers power off) against stateful
 in-memory STACKIT fakes, plus an adopt-mode scenario confirming an adopted
-`Volume`'s underlying STACKIT resource survives CR deletion - to catch
+`Volume`'s underlying STACKIT resource survives CR deletion — to catch
 issues the fake-client tests can't (finalizer/status subresource semantics,
 requeue timing, watch-triggered reconciles). Cross-controller behavior
 (e.g. a Server waiting on a not-yet-ready `imageRef`/`networkRef`) is
