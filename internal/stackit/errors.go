@@ -16,3 +16,15 @@ func IsNotFound(err error) bool {
 	}
 	return false
 }
+
+// IsConflict reports whether err is a STACKIT API "conflict" (HTTP 409)
+// error, e.g. because a resource has a dependent that has not finished
+// deleting yet. Callers on the delete path should treat this as an expected,
+// transient condition and requeue rather than surface it as a hard error.
+func IsConflict(err error) bool {
+	var oapiErr *oapierror.GenericOpenAPIError
+	if errors.As(err, &oapiErr) {
+		return oapiErr.StatusCode == http.StatusConflict
+	}
+	return false
+}

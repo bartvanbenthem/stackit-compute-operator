@@ -273,8 +273,14 @@ func (r *VolumeReconciler) reconcileDelete(ctx context.Context, volume *computev
 	}
 
 	if derefString(current.Status) != "DELETING" {
-		if err := stackit.DeleteVolume(ctx, r.StackitClient, projectID, region, volumeID); err != nil && !stackit.IsNotFound(err) {
-			return ctrl.Result{}, fmt.Errorf("deleting volume: %w", err)
+		if err := stackit.DeleteVolume(ctx, r.StackitClient, projectID, region, volumeID); err != nil {
+			if stackit.IsConflict(err) {
+				logger.Info("volume not yet deletable, retrying", "volumeId", volumeID, "reason", err.Error())
+				return ctrl.Result{RequeueAfter: pollInterval}, nil
+			}
+			if !stackit.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("deleting volume: %w", err)
+			}
 		}
 		logger.Info("triggered volume deletion", "volumeId", volumeID)
 	}

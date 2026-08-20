@@ -269,8 +269,14 @@ func (r *NetworkReconciler) reconcileDelete(ctx context.Context, network *comput
 	}
 
 	if current.Status != "DELETING" {
-		if err := stackit.DeleteNetwork(ctx, r.StackitClient, projectID, region, networkID); err != nil && !stackit.IsNotFound(err) {
-			return ctrl.Result{}, fmt.Errorf("deleting network: %w", err)
+		if err := stackit.DeleteNetwork(ctx, r.StackitClient, projectID, region, networkID); err != nil {
+			if stackit.IsConflict(err) {
+				logger.Info("network not yet deletable, retrying", "networkId", networkID, "reason", err.Error())
+				return ctrl.Result{RequeueAfter: pollInterval}, nil
+			}
+			if !stackit.IsNotFound(err) {
+				return ctrl.Result{}, fmt.Errorf("deleting network: %w", err)
+			}
 		}
 		logger.Info("triggered network deletion", "networkId", networkID)
 	}
