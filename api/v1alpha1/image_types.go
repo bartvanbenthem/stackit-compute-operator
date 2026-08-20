@@ -106,9 +106,11 @@ type ImageSpec struct {
 	// +optional
 	Name string `json:"name,omitempty"`
 
-	// DiskFormat of the image. One of "raw", "qcow2", "iso".
+	// DiskFormat of the image. One of "raw", "qcow2", "iso". Required unless
+	// existingId is set, since it is only used when creating a new image.
+	// +optional
 	// +kubebuilder:validation:Enum=raw;qcow2;iso
-	DiskFormat string `json:"diskFormat"`
+	DiskFormat string `json:"diskFormat,omitempty"`
 
 	// MinDiskSize is the minimum disk size in GB required to boot the
 	// image.

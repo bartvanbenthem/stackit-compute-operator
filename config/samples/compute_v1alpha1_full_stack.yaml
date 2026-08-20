@@ -1,22 +1,18 @@
-# End-to-end example: creates a Network, an Image, a Volume, and a Server
-# that boots from that Volume and attaches to that Network, all owned by
-# this operator (nothing pre-existing/adopted via spec.existingId).
+# End-to-end example like compute_v1alpha1_full_stack.yaml, but avoiding
+# the image upload-bytes gap entirely: instead of creating a new Image and
+# waiting for its bytes to be uploaded out-of-band, this adopts an
+# already-available STACKIT image via spec.existingId. See "Images and the
+# upload-bytes gap" and "Existing resources" in README.md.
 #
-# The Server wires itself to the Network/Volume via networkRef/bootVolumeRef
-# (see the "Referencing Volume/Image/Network from Server" section in
-# README.md) rather than raw STACKIT IDs, so it waits until both are Ready
-# before it is created.
-#
-# The Image is included to show it created alongside the rest, but it is
-# NOT used as the Volume's source or the Server's boot image here: a freshly
-# created Image stays Ready=False/AwaitingUpload until its bytes are PUT to
-# status.uploadUrl out-of-band (see "Images and the upload-bytes gap" in
-# README.md), so it can't back a Volume/Server until that happens. Most real
-# usage instead references an already-uploaded image via spec.existingId.
+# Replace the existingId/source.id UUID below with a real image ID from
+# your STACKIT project/region (e.g. `stackit image list`). The Image and
+# Volume must use the SAME UUID: Volume.spec.source has no ref support for
+# pointing at an Image resource, only a raw STACKIT image ID, so it can't
+# pick up the Image CR's resolved ID automatically.
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Network
 metadata:
-  name: prod-network
+  name: service-operator-test
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01
@@ -27,27 +23,32 @@ spec:
   labels:
     environment: dev
 ---
+# existingId marks this as adopted, not owned: the operator only observes
+# it (GET), never creates/updates/deletes it, and Ready flips true as soon
+# as that GET succeeds - no AwaitingUpload wait.
+# list image names and uuid: stackit image list -o json | jq -r '.[] | "\(.id)\t\(.name)"'
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Image
 metadata:
-  name: ubuntu-26-04
+  name: service-operator-test
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01
-  diskFormat: raw
-  labels:
-    environment: dev
+  existingId: 012d2f5b-ee00-4700-9bea-cdabf0e1bfa8
 ---
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Volume
 metadata:
-  name: web-01-boot
+  name: service-operator-test
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01
   availabilityZone: eu01-1
   size: 32
   bootable: true
+  source:
+    id: 012d2f5b-ee00-4700-9bea-cdabf0e1bfa8
+    type: image
   labels:
     environment: dev
     team: platform
@@ -55,16 +56,16 @@ spec:
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Server
 metadata:
-  name: web-01
+  name: service-operator-test
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01
   machineType: c1.2
   availabilityZone: eu01-1
   networkRef:
-    name: prod-network
+    name: service-operator-test
   bootVolumeRef:
-    name: web-01-boot
+    name: service-operator-test
   labels:
     environment: dev
     team: platform

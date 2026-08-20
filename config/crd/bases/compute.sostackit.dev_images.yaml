@@ -136,7 +136,9 @@ spec:
                     type: boolean
                 type: object
               diskFormat:
-                description: DiskFormat of the image. One of "raw", "qcow2", "iso".
+                description: |-
+                  DiskFormat of the image. One of "raw", "qcow2", "iso". Required unless
+                  existingId is set, since it is only used when creating a new image.
                 enum:
                 - raw
                 - qcow2
@@ -184,7 +186,6 @@ spec:
                 minLength: 1
                 type: string
             required:
-            - diskFormat
             - projectId
             - region
             type: object

@@ -35,8 +35,8 @@ type VolumeSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	AvailabilityZone string `json:"availabilityZone"`
 
-	// Size of the volume in GB. Required unless Source is set to an image,
-	// in which case STACKIT defaults to the image's minimum disk size.
+	// Size of the volume in GB. Required for creation regardless of Source;
+	// STACKIT does not default it from an image's minimum disk size.
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	Size int64 `json:"size,omitempty"`
