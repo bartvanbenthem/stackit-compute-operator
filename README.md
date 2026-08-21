@@ -2,7 +2,7 @@
 
 A Kubernetes operator that manages the lifecycle of [STACKIT](https://www.stackit.de/)
 Compute Engine resources through four custom resources: `Server`, `Volume`,
-`Image`, and `Network`. It's scoped to Compute Engine (IaaS) — broader
+`Image`, and `Network`. It's scoped to Compute Engine (IaaS), broader
 STACKIT networking (routing, VPCs) beyond these four resources is out of
 scope for this version.
 
@@ -23,7 +23,7 @@ the same pattern:
 - Mirrors STACKIT's observed status onto `.status` and sets a `Ready`
   condition summarizing reconciliation state.
 - Recreates the resource if it disappears from STACKIT out of band (owned
-  resources only — see [Existing resources](#existing-resources-bring-your-own)
+  resources only, see [Existing resources](#existing-resources-bring-your-own)
   below).
 - Reconciles a limited set of drift (see each type's `_controller.go` for
   exactly which fields): e.g. Server reconciles `spec.machineType` (resize),
@@ -35,7 +35,7 @@ the same pattern:
 `Volume`, `Image`, and `Network` each support a `spec.existingId` field. If
 set, the operator treats the resource as **not owned**: it only observes the
 STACKIT object at that ID (via `GET`) and never creates, updates, or
-deletes it, and never adds a finalizer — deleting the Kubernetes object is a
+deletes it, and never adds a finalizer, deleting the Kubernetes object is a
 no-op against STACKIT. Leave `existingId` unset for the operator to own the
 resource's full lifecycle instead. Changing `existingId` after a resource
 has already been created or adopted is unsupported (there is no webhook to
@@ -61,14 +61,14 @@ A ref is resolved to the referenced resource's `status.<x>Id` at server
 creation time; if that resource isn't Ready yet, the Server just waits and
 retries (no error). Setting both a ref and its raw-ID counterpart (e.g. both
 `imageId` and `imageRef`) is a validation error surfaced as
-`Ready=False/InvalidReference` — only one of each pair is allowed. See
+`Ready=False/InvalidReference`, only one of each pair is allowed. See
 [config/samples/compute_v1alpha1_server_with_refs.yaml](config/samples/compute_v1alpha1_server_with_refs.yaml)
 for referencing already-existing resources, or
 [config/samples/compute_v1alpha1_full_stack.yaml](config/samples/compute_v1alpha1_full_stack.yaml)
 for a Network/Image/Volume/Server created together in one file.
 
 `bootVolumeRef` fixes a specific gap: without it, a server's boot volume is
-created implicitly as part of `CreateServerPayload` — a real STACKIT volume
+created implicitly as part of `CreateServerPayload`, a real STACKIT volume
 whose state (size, status) was previously invisible to Kubernetes and never
 reconciled. Using `bootVolumeRef` makes the boot volume a first-class
 `Volume` resource with its own status and drift reconciliation (e.g.
@@ -120,7 +120,7 @@ make run              # run the manager locally against your current kubeconfig
 
 `make test` covers payload construction ([internal/stackit](internal/stackit)) and
 reconcile logic ([internal/controller](internal/controller)) against a fake
-Kubernetes client and the STACKIT SDK's own `DefaultAPIServiceMock` — no
+Kubernetes client and the STACKIT SDK's own `DefaultAPIServiceMock`, no
 network or external binaries required, for all four resource types
 including owned and `existingId`-adopted reconcile paths. `make
 test-integration` additionally downloads envtest (a real `kube-apiserver` +
@@ -128,7 +128,7 @@ test-integration` additionally downloads envtest (a real `kube-apiserver` +
 through full lifecycles for `Server`, `Volume`, `Image`, and `Network`
 (create → ready → delete; `Server` also covers power off) against stateful
 in-memory STACKIT fakes, plus an adopt-mode scenario confirming an adopted
-`Volume`'s underlying STACKIT resource survives CR deletion — to catch
+`Volume`'s underlying STACKIT resource survives CR deletion, to catch
 issues the fake-client tests can't (finalizer/status subresource semantics,
 requeue timing, watch-triggered reconciles). Cross-controller behavior
 (e.g. a Server waiting on a not-yet-ready `imageRef`/`networkRef`) is
@@ -154,7 +154,7 @@ generated files must be hand-edited to match instead.
 ## Notes
 
 - The Go module path (`github.com/bartvanbenthem/stackit-compute-operator`) and
-  API group domain (`compute.sostackit.dev`) are placeholders — rename them
+  API group domain (`compute.sostackit.dev`) are placeholders, rename them
   to match wherever this repo actually lives before publishing.
 - `go.sum` is not checked in; run `go mod tidy` once you have network access
   to populate it.
