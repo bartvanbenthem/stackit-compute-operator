@@ -52,6 +52,11 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcile(ctx, cluster)
+	return demoteTransientAuthError(ctx, result, err)
+}
+
+func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *computev1alpha1.Cluster) (ctrl.Result, error) {
 	if !cluster.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, cluster)
 	}
@@ -77,6 +82,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *computev1alpha1.Cluster, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *cluster.Status.DeepCopy()
 	projectID, region := cluster.Spec.ProjectId, cluster.Spec.Region
 
 	if adopted {
@@ -85,8 +91,10 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 		if err != nil {
 			if stackit.IsNotFound(err) {
 				r.setReadyCondition(cluster, metav1.ConditionFalse, "NotFound", "existingClusterName not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
-					logger.Error(statusErr, "unable to update Cluster status after adopt-not-found")
+				if !statusUnchanged(before, cluster.Status) {
+					if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+						logger.Error(statusErr, "unable to update Cluster status after adopt-not-found")
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
@@ -94,8 +102,10 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 		}
 		cluster.Status.ClusterName = name
 		r.applyClusterStatus(cluster, current)
-		if err := r.Status().Update(ctx, cluster); err != nil {
-			return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+		if !statusUnchanged(before, cluster.Status) {
+			if err := r.Status().Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+			}
 		}
 		logger.Info("adopted existing cluster", "clusterName", name)
 		return ctrl.Result{Requeue: true}, nil
@@ -107,8 +117,10 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 	created, err := stackit.CreateOrUpdateCluster(ctx, r.StackitClient, projectID, region, name, payload)
 	if err != nil {
 		r.setReadyCondition(cluster, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
-			logger.Error(statusErr, "unable to update Cluster status after create failure")
+		if !statusUnchanged(before, cluster.Status) {
+			if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+				logger.Error(statusErr, "unable to update Cluster status after create failure")
+			}
 		}
 		return ctrl.Result{}, fmt.Errorf("creating cluster: %w", err)
 	}
@@ -116,8 +128,10 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 	cluster.Status.ClusterName = name
 	r.applyClusterStatus(cluster, created)
 	r.setReadyCondition(cluster, metav1.ConditionFalse, "Creating", "cluster creation triggered")
-	if err := r.Status().Update(ctx, cluster); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+	if !statusUnchanged(before, cluster.Status) {
+		if err := r.Status().Update(ctx, cluster); err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+		}
 	}
 
 	logger.Info("triggered cluster creation", "clusterName", cluster.Status.ClusterName)
@@ -126,6 +140,7 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 
 func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *computev1alpha1.Cluster, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *cluster.Status.DeepCopy()
 	projectID, region, name := cluster.Spec.ProjectId, cluster.Spec.Region, cluster.Status.ClusterName
 
 	current, err := stackit.GetCluster(ctx, r.StackitClient, projectID, region, name)
@@ -134,16 +149,20 @@ func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *comp
 			if adopted {
 				logger.Info("adopted cluster no longer exists in STACKIT", "clusterName", name)
 				r.setReadyCondition(cluster, metav1.ConditionFalse, "NotFound", "existingClusterName not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
-					return ctrl.Result{}, statusErr
+				if !statusUnchanged(before, cluster.Status) {
+					if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
 			logger.Info("cluster no longer exists in STACKIT, will recreate", "clusterName", name)
 			cluster.Status.ClusterName = ""
 			r.setReadyCondition(cluster, metav1.ConditionFalse, "NotFound", "cluster not found in STACKIT, will recreate")
-			if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
-				return ctrl.Result{}, statusErr
+			if !statusUnchanged(before, cluster.Status) {
+				if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -156,15 +175,19 @@ func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *comp
 	switch {
 	case clusterTransitionalStates[state]:
 		r.setReadyCondition(cluster, metav1.ConditionFalse, "Transitioning", fmt.Sprintf("cluster is %s", state))
-		if err := r.Status().Update(ctx, cluster); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, cluster.Status) {
+			if err := r.Status().Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 
 	case state == "STATE_UNHEALTHY":
 		r.setReadyCondition(cluster, metav1.ConditionFalse, "Unhealthy", fmt.Sprintf("cluster is %s", state))
-		if err := r.Status().Update(ctx, cluster); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, cluster.Status) {
+			if err := r.Status().Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 	}
@@ -185,8 +208,10 @@ func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *comp
 		reason, condStatus = "Hibernated", metav1.ConditionTrue
 	}
 	r.setReadyCondition(cluster, condStatus, reason, fmt.Sprintf("cluster is %s", state))
-	if err := r.Status().Update(ctx, cluster); err != nil {
-		return ctrl.Result{}, err
+	if !statusUnchanged(before, cluster.Status) {
+		if err := r.Status().Update(ctx, cluster); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil

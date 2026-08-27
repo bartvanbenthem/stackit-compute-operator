@@ -49,6 +49,11 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcile(ctx, network)
+	return demoteTransientAuthError(ctx, result, err)
+}
+
+func (r *NetworkReconciler) reconcile(ctx context.Context, network *computev1alpha1.Network) (ctrl.Result, error) {
 	if !network.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, network)
 	}
@@ -74,6 +79,7 @@ func (r *NetworkReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *computev1alpha1.Network, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *network.Status.DeepCopy()
 	projectID, region := network.Spec.ProjectId, network.Spec.Region
 
 	if adopted {
@@ -82,8 +88,10 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 		if err != nil {
 			if stackit.IsNotFound(err) {
 				r.setReadyCondition(network, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, network); statusErr != nil {
-					logger.Error(statusErr, "unable to update Network status after adopt-not-found")
+				if !statusUnchanged(before, network.Status) {
+					if statusErr := r.Status().Update(ctx, network); statusErr != nil {
+						logger.Error(statusErr, "unable to update Network status after adopt-not-found")
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
@@ -91,8 +99,10 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 		}
 		network.Status.NetworkId = id
 		r.applyNetworkStatus(network, current)
-		if err := r.Status().Update(ctx, network); err != nil {
-			return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+		if !statusUnchanged(before, network.Status) {
+			if err := r.Status().Update(ctx, network); err != nil {
+				return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+			}
 		}
 		logger.Info("adopted existing network", "networkId", id)
 		return ctrl.Result{Requeue: true}, nil
@@ -104,8 +114,10 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 	created, err := stackit.CreateNetwork(ctx, r.StackitClient, projectID, region, payload)
 	if err != nil {
 		r.setReadyCondition(network, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if statusErr := r.Status().Update(ctx, network); statusErr != nil {
-			logger.Error(statusErr, "unable to update Network status after create failure")
+		if !statusUnchanged(before, network.Status) {
+			if statusErr := r.Status().Update(ctx, network); statusErr != nil {
+				logger.Error(statusErr, "unable to update Network status after create failure")
+			}
 		}
 		return ctrl.Result{}, fmt.Errorf("creating network: %w", err)
 	}
@@ -113,8 +125,10 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 	network.Status.NetworkId = created.Id
 	r.applyNetworkStatus(network, created)
 	r.setReadyCondition(network, metav1.ConditionFalse, "Creating", "network creation triggered")
-	if err := r.Status().Update(ctx, network); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+	if !statusUnchanged(before, network.Status) {
+		if err := r.Status().Update(ctx, network); err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+		}
 	}
 
 	logger.Info("triggered network creation", "networkId", network.Status.NetworkId)
@@ -123,6 +137,7 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 
 func (r *NetworkReconciler) reconcileExisting(ctx context.Context, network *computev1alpha1.Network, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *network.Status.DeepCopy()
 	projectID, region, networkID := network.Spec.ProjectId, network.Spec.Region, network.Status.NetworkId
 
 	current, err := stackit.GetNetwork(ctx, r.StackitClient, projectID, region, networkID)
@@ -131,16 +146,20 @@ func (r *NetworkReconciler) reconcileExisting(ctx context.Context, network *comp
 			if adopted {
 				logger.Info("adopted network no longer exists in STACKIT", "networkId", networkID)
 				r.setReadyCondition(network, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, network); statusErr != nil {
-					return ctrl.Result{}, statusErr
+				if !statusUnchanged(before, network.Status) {
+					if statusErr := r.Status().Update(ctx, network); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
 			logger.Info("network no longer exists in STACKIT, will recreate", "networkId", networkID)
 			network.Status.NetworkId = ""
 			r.setReadyCondition(network, metav1.ConditionFalse, "NotFound", "network not found in STACKIT, will recreate")
-			if statusErr := r.Status().Update(ctx, network); statusErr != nil {
-				return ctrl.Result{}, statusErr
+			if !statusUnchanged(before, network.Status) {
+				if statusErr := r.Status().Update(ctx, network); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -153,15 +172,19 @@ func (r *NetworkReconciler) reconcileExisting(ctx context.Context, network *comp
 	switch {
 	case networkTransitionalStates[state]:
 		r.setReadyCondition(network, metav1.ConditionFalse, "Transitioning", fmt.Sprintf("network is %s", state))
-		if err := r.Status().Update(ctx, network); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, network.Status) {
+			if err := r.Status().Update(ctx, network); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 
 	case state == "FAILED":
 		r.setReadyCondition(network, metav1.ConditionFalse, "Error", fmt.Sprintf("network is %s", state))
-		if err := r.Status().Update(ctx, network); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, network.Status) {
+			if err := r.Status().Update(ctx, network); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 	}
@@ -182,8 +205,10 @@ func (r *NetworkReconciler) reconcileExisting(ctx context.Context, network *comp
 		reason, condStatus = "Updated", metav1.ConditionTrue
 	}
 	r.setReadyCondition(network, condStatus, reason, fmt.Sprintf("network is %s", state))
-	if err := r.Status().Update(ctx, network); err != nil {
-		return ctrl.Result{}, err
+	if !statusUnchanged(before, network.Status) {
+		if err := r.Status().Update(ctx, network); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil

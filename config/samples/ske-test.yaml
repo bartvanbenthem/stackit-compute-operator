@@ -1,16 +1,16 @@
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Cluster
 metadata:
-  name: service-operator-test
+  name: sotest
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01
   kubernetesVersion: "1.35.6"
   nodePools:
     - name: pool-1
-      machineType: c1.2
+      machineType: c2i.2
       machineImageName: flatcar
-      machineImageVersion: "3815.2.0"
+      machineImageVersion: "4593.2.2"
       availabilityZones:
         - eu01-1
       minimum: 1

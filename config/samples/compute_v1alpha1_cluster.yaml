@@ -8,9 +8,9 @@ spec:
   kubernetesVersion: "1.35.6"
   nodePools:
     - name: pool-1
-      machineType: c1.2
+      machineType: c2i.2
       machineImageName: flatcar
-      machineImageVersion: "3815.2.0"
+      machineImageVersion: "4593.2.2"
       availabilityZones:
         - eu01-1
       minimum: 1

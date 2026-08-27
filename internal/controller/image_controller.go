@@ -48,6 +48,11 @@ func (r *ImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcile(ctx, image)
+	return demoteTransientAuthError(ctx, result, err)
+}
+
+func (r *ImageReconciler) reconcile(ctx context.Context, image *computev1alpha1.Image) (ctrl.Result, error) {
 	if !image.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, image)
 	}
@@ -73,6 +78,7 @@ func (r *ImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1alpha1.Image, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *image.Status.DeepCopy()
 	projectID, region := image.Spec.ProjectId, image.Spec.Region
 
 	if adopted {
@@ -81,8 +87,10 @@ func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1a
 		if err != nil {
 			if stackit.IsNotFound(err) {
 				r.setReadyCondition(image, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, image); statusErr != nil {
-					logger.Error(statusErr, "unable to update Image status after adopt-not-found")
+				if !statusUnchanged(before, image.Status) {
+					if statusErr := r.Status().Update(ctx, image); statusErr != nil {
+						logger.Error(statusErr, "unable to update Image status after adopt-not-found")
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
@@ -90,8 +98,10 @@ func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1a
 		}
 		image.Status.ImageId = id
 		r.applyImageStatus(image, current)
-		if err := r.Status().Update(ctx, image); err != nil {
-			return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+		if !statusUnchanged(before, image.Status) {
+			if err := r.Status().Update(ctx, image); err != nil {
+				return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+			}
 		}
 		logger.Info("adopted existing image", "imageId", id)
 		return ctrl.Result{Requeue: true}, nil
@@ -103,8 +113,10 @@ func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1a
 	created, err := stackit.CreateImage(ctx, r.StackitClient, projectID, region, payload)
 	if err != nil {
 		r.setReadyCondition(image, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if statusErr := r.Status().Update(ctx, image); statusErr != nil {
-			logger.Error(statusErr, "unable to update Image status after create failure")
+		if !statusUnchanged(before, image.Status) {
+			if statusErr := r.Status().Update(ctx, image); statusErr != nil {
+				logger.Error(statusErr, "unable to update Image status after create failure")
+			}
 		}
 		return ctrl.Result{}, fmt.Errorf("creating image: %w", err)
 	}
@@ -113,8 +125,10 @@ func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1a
 	image.Status.UploadUrl = created.UploadUrl
 	image.Status.ObservedGeneration = image.Generation
 	r.setReadyCondition(image, metav1.ConditionFalse, "AwaitingUpload", "image registered; upload image bytes to status.uploadUrl before it becomes available")
-	if err := r.Status().Update(ctx, image); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+	if !statusUnchanged(before, image.Status) {
+		if err := r.Status().Update(ctx, image); err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+		}
 	}
 
 	logger.Info("triggered image creation", "imageId", image.Status.ImageId)
@@ -123,6 +137,7 @@ func (r *ImageReconciler) reconcileCreate(ctx context.Context, image *computev1a
 
 func (r *ImageReconciler) reconcileExisting(ctx context.Context, image *computev1alpha1.Image, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *image.Status.DeepCopy()
 	projectID, region, imageID := image.Spec.ProjectId, image.Spec.Region, image.Status.ImageId
 
 	current, err := stackit.GetImage(ctx, r.StackitClient, projectID, region, imageID)
@@ -131,16 +146,20 @@ func (r *ImageReconciler) reconcileExisting(ctx context.Context, image *computev
 			if adopted {
 				logger.Info("adopted image no longer exists in STACKIT", "imageId", imageID)
 				r.setReadyCondition(image, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, image); statusErr != nil {
-					return ctrl.Result{}, statusErr
+				if !statusUnchanged(before, image.Status) {
+					if statusErr := r.Status().Update(ctx, image); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
 			logger.Info("image no longer exists in STACKIT, will recreate", "imageId", imageID)
 			image.Status.ImageId = ""
 			r.setReadyCondition(image, metav1.ConditionFalse, "NotFound", "image not found in STACKIT, will recreate")
-			if statusErr := r.Status().Update(ctx, image); statusErr != nil {
-				return ctrl.Result{}, statusErr
+			if !statusUnchanged(before, image.Status) {
+				if statusErr := r.Status().Update(ctx, image); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -156,22 +175,28 @@ func (r *ImageReconciler) reconcileExisting(ctx context.Context, image *computev
 		// the uploaded bytes, not actively working - surface that
 		// distinction instead of a generic "Transitioning" reason.
 		r.setReadyCondition(image, metav1.ConditionFalse, "AwaitingUpload", "image is CREATING; upload bytes to status.uploadUrl")
-		if err := r.Status().Update(ctx, image); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, image.Status) {
+			if err := r.Status().Update(ctx, image); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 
 	case "DELETING":
 		r.setReadyCondition(image, metav1.ConditionFalse, "Transitioning", fmt.Sprintf("image is %s", state))
-		if err := r.Status().Update(ctx, image); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, image.Status) {
+			if err := r.Status().Update(ctx, image); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 
 	case "ERROR":
 		r.setReadyCondition(image, metav1.ConditionFalse, "Error", fmt.Sprintf("image is %s", state))
-		if err := r.Status().Update(ctx, image); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, image.Status) {
+			if err := r.Status().Update(ctx, image); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 	}
@@ -192,8 +217,10 @@ func (r *ImageReconciler) reconcileExisting(ctx context.Context, image *computev
 		reason = "Deactivated"
 	}
 	r.setReadyCondition(image, condStatus, reason, fmt.Sprintf("image is %s", state))
-	if err := r.Status().Update(ctx, image); err != nil {
-		return ctrl.Result{}, err
+	if !statusUnchanged(before, image.Status) {
+		if err := r.Status().Update(ctx, image); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil

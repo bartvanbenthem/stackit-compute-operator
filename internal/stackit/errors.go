@@ -1,6 +1,7 @@
 package stackit
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 
@@ -25,6 +26,21 @@ func IsConflict(err error) bool {
 	var oapiErr *oapierror.GenericOpenAPIError
 	if errors.As(err, &oapiErr) {
 		return oapiErr.StatusCode == http.StatusConflict
+	}
+	return false
+}
+
+// IsTransientAuthError reports whether err is STACKIT's token endpoint
+// rejecting the SDK's authentication assertion with "invalid_grant"/"invalid
+// iat". In practice this happens when the local clock is briefly skewed
+// relative to STACKIT's (e.g. a WSL2 guest clock catching up right after the
+// host wakes), and it reliably clears on the very next token request once
+// the clock has settled. Callers should log this at a lower severity and
+// requeue rather than surface it as a hard reconcile error.
+func IsTransientAuthError(err error) bool {
+	var oapiErr *oapierror.GenericOpenAPIError
+	if errors.As(err, &oapiErr) {
+		return oapiErr.StatusCode == http.StatusBadRequest && bytes.Contains(oapiErr.Body, []byte("invalid_grant"))
 	}
 	return false
 }

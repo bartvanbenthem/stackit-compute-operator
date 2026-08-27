@@ -61,6 +61,11 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcile(ctx, server)
+	return demoteTransientAuthError(ctx, result, err)
+}
+
+func (r *ServerReconciler) reconcile(ctx context.Context, server *computev1alpha1.Server) (ctrl.Result, error) {
 	if !server.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, server)
 	}
@@ -82,24 +87,27 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev1alpha1.Server) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *server.Status.DeepCopy()
 
 	imageID, imageReady, err := r.resolveImageRef(ctx, server)
 	if err != nil {
-		return r.invalidReference(ctx, server, err)
+		return r.invalidReference(ctx, server, before, err)
 	}
 	networkID, networkReady, err := r.resolveNetworkRef(ctx, server)
 	if err != nil {
-		return r.invalidReference(ctx, server, err)
+		return r.invalidReference(ctx, server, before, err)
 	}
 	bootVolumeID, bootVolumeReady, err := r.resolveBootVolumeRef(ctx, server)
 	if err != nil {
-		return r.invalidReference(ctx, server, err)
+		return r.invalidReference(ctx, server, before, err)
 	}
 
 	if !imageReady || !networkReady || !bootVolumeReady {
 		r.setReadyCondition(server, metav1.ConditionFalse, "WaitingForReference", "waiting for referenced Image/Network/Volume to become ready")
-		if statusErr := r.Status().Update(ctx, server); statusErr != nil {
-			return ctrl.Result{}, statusErr
+		if !statusUnchanged(before, server.Status) {
+			if statusErr := r.Status().Update(ctx, server); statusErr != nil {
+				return ctrl.Result{}, statusErr
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 	}
@@ -110,8 +118,10 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 	created, err := stackit.CreateServer(ctx, r.StackitClient, server.Spec.ProjectId, server.Spec.Region, payload)
 	if err != nil {
 		r.setReadyCondition(server, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if statusErr := r.Status().Update(ctx, server); statusErr != nil {
-			logger.Error(statusErr, "unable to update Server status after create failure")
+		if !statusUnchanged(before, server.Status) {
+			if statusErr := r.Status().Update(ctx, server); statusErr != nil {
+				logger.Error(statusErr, "unable to update Server status after create failure")
+			}
 		}
 		return ctrl.Result{}, fmt.Errorf("creating server: %w", err)
 	}
@@ -122,8 +132,10 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 	server.Status.ServerId = *created.Id
 	r.applyServerStatus(server, created)
 	r.setReadyCondition(server, metav1.ConditionFalse, "Creating", "server creation triggered")
-	if err := r.Status().Update(ctx, server); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+	if !statusUnchanged(before, server.Status) {
+		if err := r.Status().Update(ctx, server); err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+		}
 	}
 
 	logger.Info("triggered server creation", "serverId", server.Status.ServerId)
@@ -207,16 +219,19 @@ func (r *ServerReconciler) resolveBootVolumeRef(ctx context.Context, server *com
 // failure, e.g. both a ref and its raw-ID counterpart being set. The next
 // spec edit re-triggers reconciliation via the controller's watch on
 // Server, so no requeue is scheduled here.
-func (r *ServerReconciler) invalidReference(ctx context.Context, server *computev1alpha1.Server, refErr error) (ctrl.Result, error) {
+func (r *ServerReconciler) invalidReference(ctx context.Context, server *computev1alpha1.Server, before computev1alpha1.ServerStatus, refErr error) (ctrl.Result, error) {
 	r.setReadyCondition(server, metav1.ConditionFalse, "InvalidReference", refErr.Error())
-	if statusErr := r.Status().Update(ctx, server); statusErr != nil {
-		return ctrl.Result{}, statusErr
+	if !statusUnchanged(before, server.Status) {
+		if statusErr := r.Status().Update(ctx, server); statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
 	}
 	return ctrl.Result{}, nil
 }
 
 func (r *ServerReconciler) reconcileExisting(ctx context.Context, server *computev1alpha1.Server) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *server.Status.DeepCopy()
 	projectID, region, serverID := server.Spec.ProjectId, server.Spec.Region, server.Status.ServerId
 
 	current, err := stackit.GetServer(ctx, r.StackitClient, projectID, region, serverID)
@@ -225,8 +240,10 @@ func (r *ServerReconciler) reconcileExisting(ctx context.Context, server *comput
 			logger.Info("server no longer exists in STACKIT, will recreate", "serverId", serverID)
 			server.Status.ServerId = ""
 			r.setReadyCondition(server, metav1.ConditionFalse, "NotFound", "server not found in STACKIT, will recreate")
-			if statusErr := r.Status().Update(ctx, server); statusErr != nil {
-				return ctrl.Result{}, statusErr
+			if !statusUnchanged(before, server.Status) {
+				if statusErr := r.Status().Update(ctx, server); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -239,15 +256,19 @@ func (r *ServerReconciler) reconcileExisting(ctx context.Context, server *comput
 	switch {
 	case transitionalStates[state]:
 		r.setReadyCondition(server, metav1.ConditionFalse, "Transitioning", fmt.Sprintf("server is %s", state))
-		if err := r.Status().Update(ctx, server); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, server.Status) {
+			if err := r.Status().Update(ctx, server); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 
 	case state == "ERROR":
 		r.setReadyCondition(server, metav1.ConditionFalse, "Error", derefString(current.ErrorMessage))
-		if err := r.Status().Update(ctx, server); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, server.Status) {
+			if err := r.Status().Update(ctx, server); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 	}
@@ -266,8 +287,10 @@ func (r *ServerReconciler) reconcileExisting(ctx context.Context, server *comput
 		reason, condStatus = "Inactive", metav1.ConditionTrue
 	}
 	r.setReadyCondition(server, condStatus, reason, fmt.Sprintf("server is %s", state))
-	if err := r.Status().Update(ctx, server); err != nil {
-		return ctrl.Result{}, err
+	if !statusUnchanged(before, server.Status) {
+		if err := r.Status().Update(ctx, server); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil

@@ -52,6 +52,11 @@ func (r *VolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	result, err := r.reconcile(ctx, volume)
+	return demoteTransientAuthError(ctx, result, err)
+}
+
+func (r *VolumeReconciler) reconcile(ctx context.Context, volume *computev1alpha1.Volume) (ctrl.Result, error) {
 	if !volume.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, volume)
 	}
@@ -77,6 +82,7 @@ func (r *VolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev1alpha1.Volume, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *volume.Status.DeepCopy()
 	projectID, region := volume.Spec.ProjectId, volume.Spec.Region
 
 	if adopted {
@@ -85,8 +91,10 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 		if err != nil {
 			if stackit.IsNotFound(err) {
 				r.setReadyCondition(volume, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
-					logger.Error(statusErr, "unable to update Volume status after adopt-not-found")
+				if !statusUnchanged(before, volume.Status) {
+					if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
+						logger.Error(statusErr, "unable to update Volume status after adopt-not-found")
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
@@ -94,8 +102,10 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 		}
 		volume.Status.VolumeId = id
 		r.applyVolumeStatus(volume, current)
-		if err := r.Status().Update(ctx, volume); err != nil {
-			return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+		if !statusUnchanged(before, volume.Status) {
+			if err := r.Status().Update(ctx, volume); err != nil {
+				return ctrl.Result{}, fmt.Errorf("updating status after adopt: %w", err)
+			}
 		}
 		logger.Info("adopted existing volume", "volumeId", id)
 		return ctrl.Result{Requeue: true}, nil
@@ -107,8 +117,10 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 	created, err := stackit.CreateVolume(ctx, r.StackitClient, projectID, region, payload)
 	if err != nil {
 		r.setReadyCondition(volume, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
-			logger.Error(statusErr, "unable to update Volume status after create failure")
+		if !statusUnchanged(before, volume.Status) {
+			if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
+				logger.Error(statusErr, "unable to update Volume status after create failure")
+			}
 		}
 		return ctrl.Result{}, fmt.Errorf("creating volume: %w", err)
 	}
@@ -119,8 +131,10 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 	volume.Status.VolumeId = *created.Id
 	r.applyVolumeStatus(volume, created)
 	r.setReadyCondition(volume, metav1.ConditionFalse, "Creating", "volume creation triggered")
-	if err := r.Status().Update(ctx, volume); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+	if !statusUnchanged(before, volume.Status) {
+		if err := r.Status().Update(ctx, volume); err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating status after create: %w", err)
+		}
 	}
 
 	logger.Info("triggered volume creation", "volumeId", volume.Status.VolumeId)
@@ -129,6 +143,7 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 
 func (r *VolumeReconciler) reconcileExisting(ctx context.Context, volume *computev1alpha1.Volume, adopted bool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	before := *volume.Status.DeepCopy()
 	projectID, region, volumeID := volume.Spec.ProjectId, volume.Spec.Region, volume.Status.VolumeId
 
 	current, err := stackit.GetVolume(ctx, r.StackitClient, projectID, region, volumeID)
@@ -137,16 +152,20 @@ func (r *VolumeReconciler) reconcileExisting(ctx context.Context, volume *comput
 			if adopted {
 				logger.Info("adopted volume no longer exists in STACKIT", "volumeId", volumeID)
 				r.setReadyCondition(volume, metav1.ConditionFalse, "NotFound", "existingId not found in STACKIT")
-				if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
-					return ctrl.Result{}, statusErr
+				if !statusUnchanged(before, volume.Status) {
+					if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
 				}
 				return ctrl.Result{RequeueAfter: errorInterval}, nil
 			}
 			logger.Info("volume no longer exists in STACKIT, will recreate", "volumeId", volumeID)
 			volume.Status.VolumeId = ""
 			r.setReadyCondition(volume, metav1.ConditionFalse, "NotFound", "volume not found in STACKIT, will recreate")
-			if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
-				return ctrl.Result{}, statusErr
+			if !statusUnchanged(before, volume.Status) {
+				if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
+					return ctrl.Result{}, statusErr
+				}
 			}
 			return ctrl.Result{Requeue: true}, nil
 		}
@@ -159,15 +178,19 @@ func (r *VolumeReconciler) reconcileExisting(ctx context.Context, volume *comput
 	switch {
 	case volumeTransitionalStates[state]:
 		r.setReadyCondition(volume, metav1.ConditionFalse, "Transitioning", fmt.Sprintf("volume is %s", state))
-		if err := r.Status().Update(ctx, volume); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, volume.Status) {
+			if err := r.Status().Update(ctx, volume); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: pollInterval}, nil
 
 	case strings.HasPrefix(state, "ERROR"):
 		r.setReadyCondition(volume, metav1.ConditionFalse, "Error", fmt.Sprintf("volume is %s", state))
-		if err := r.Status().Update(ctx, volume); err != nil {
-			return ctrl.Result{}, err
+		if !statusUnchanged(before, volume.Status) {
+			if err := r.Status().Update(ctx, volume); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		return ctrl.Result{RequeueAfter: errorInterval}, nil
 	}
@@ -188,8 +211,10 @@ func (r *VolumeReconciler) reconcileExisting(ctx context.Context, volume *comput
 		reason, condStatus = "Attached", metav1.ConditionTrue
 	}
 	r.setReadyCondition(volume, condStatus, reason, fmt.Sprintf("volume is %s", state))
-	if err := r.Status().Update(ctx, volume); err != nil {
-		return ctrl.Result{}, err
+	if !statusUnchanged(before, volume.Status) {
+		if err := r.Status().Update(ctx, volume); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: resyncPeriod}, nil
