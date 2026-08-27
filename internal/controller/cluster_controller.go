@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -394,10 +395,22 @@ func maintenanceEqual(current *ske.Maintenance, desired *computev1alpha1.Cluster
 	if derefBool(current.AutoUpdate.MachineImageVersion) != derefBool(desired.AutoUpdateMachineImageVersion) {
 		return false
 	}
-	if !current.TimeWindow.Start.Equal(desired.Start.Time) || !current.TimeWindow.End.Equal(desired.End.Time) {
+	if !sameTimeOfDay(current.TimeWindow.Start, desired.Start.Time) || !sameTimeOfDay(current.TimeWindow.End, desired.End.Time) {
 		return false
 	}
 	return true
+}
+
+// sameTimeOfDay reports whether a and b represent the same wall-clock time
+// of day. SKE's maintenance window recurs daily and echoes back Start/End
+// with a placeholder date (observed as year 0000) rather than the date
+// submitted in the spec, so comparing full timestamps via time.Equal always
+// finds drift; only the hour/minute/second (normalized to UTC to ignore
+// differing zone representations of the same instant-of-day) are meaningful.
+func sameTimeOfDay(a, b time.Time) bool {
+	ah, am, as := a.UTC().Clock()
+	bh, bm, bs := b.UTC().Clock()
+	return ah == bh && am == bm && as == bs
 }
 
 func stringSlicesEqualUnordered(a, b []string) bool {
