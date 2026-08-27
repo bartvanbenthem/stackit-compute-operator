@@ -7,6 +7,7 @@ rules:
 - apiGroups:
   - compute.sostackit.dev
   resources:
+  - clusters
   - images
   - networks
   - servers
@@ -22,6 +23,7 @@ rules:
 - apiGroups:
   - compute.sostackit.dev
   resources:
+  - clusters/finalizers
   - images/finalizers
   - networks/finalizers
   - servers/finalizers
@@ -31,6 +33,7 @@ rules:
 - apiGroups:
   - compute.sostackit.dev
   resources:
+  - clusters/status
   - images/status
   - networks/status
   - servers/status

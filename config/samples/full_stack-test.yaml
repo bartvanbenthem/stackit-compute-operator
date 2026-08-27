@@ -1,0 +1,72 @@
+# End-to-end example like compute_v1alpha1_full_stack.yaml, but avoiding
+# the image upload-bytes gap entirely: instead of creating a new Image and
+# waiting for its bytes to be uploaded out-of-band, this adopts an
+# already-available STACKIT image via spec.existingId. See "Images and the
+# upload-bytes gap" and "Existing resources" in README.md.
+#
+# Replace the existingId/source.id UUID below with a real image ID from
+# your STACKIT project/region (e.g. `stackit image list`). The Image and
+# Volume must use the SAME UUID: Volume.spec.source has no ref support for
+# pointing at an Image resource, only a raw STACKIT image ID, so it can't
+# pick up the Image CR's resolved ID automatically.
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Network
+metadata:
+  name: service-operator-test
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  dhcp: true
+  routed: true
+  ipv4:
+    prefixLength: 24
+  labels:
+    environment: dev
+---
+# existingId marks this as adopted, not owned: the operator only observes
+# it (GET), never creates/updates/deletes it, and Ready flips true as soon
+# as that GET succeeds - no AwaitingUpload wait.
+# list image names and uuid: stackit image list -o json | jq -r '.[] | "\(.id)\t\(.name)"'
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Image
+metadata:
+  name: service-operator-test
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  existingId: 012d2f5b-ee00-4700-9bea-cdabf0e1bfa8
+---
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Volume
+metadata:
+  name: service-operator-test
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  availabilityZone: eu01-1
+  size: 32
+  bootable: true
+  source:
+    id: 012d2f5b-ee00-4700-9bea-cdabf0e1bfa8
+    type: image
+  labels:
+    environment: dev
+    team: platform
+---
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Server
+metadata:
+  name: service-operator-test
+spec:
+  projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
+  region: eu01
+  machineType: c1.2
+  availabilityZone: eu01-1
+  networkRef:
+    name: service-operator-test
+  bootVolumeRef:
+    name: service-operator-test
+  labels:
+    environment: dev
+    team: platform
+  powerState: Active

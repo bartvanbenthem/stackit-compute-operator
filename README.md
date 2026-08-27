@@ -1,19 +1,20 @@
 # STACKIT Service Operator for Compute
 
 A Kubernetes operator that manages the lifecycle of [STACKIT](https://www.stackit.de/)
-Compute Engine resources through four custom resources: `Server`, `Volume`,
-`Image`, and `Network`. It's scoped to Compute Engine (IaaS), broader
-STACKIT networking (routing, VPCs) beyond these four resources is out of
-scope for this version.
+Compute Engine and Kubernetes Engine resources through five custom
+resources: `Server`, `Volume`, `Image`, `Network` (Compute Engine / IaaS),
+and `Cluster` (STACKIT Kubernetes Engine / SKE). Broader STACKIT networking
+(routing, VPCs) beyond these five resources is out of scope for this
+version.
 
 Built on the [official STACKIT Go SDK](https://github.com/stackitcloud/stackit-sdk-go)
-(`services/iaas/v2api`).
+(`services/iaas/v2api` and `services/ske/v2api`).
 
 ## API
 
-`compute.sostackit.dev/v1alpha1` defines `Server`, `Volume`, `Image`, and
-`Network` — see [api/v1alpha1](api/v1alpha1) for the types and
-[config/samples](config/samples) for examples. Each has a matching
+`compute.sostackit.dev/v1alpha1` defines `Server`, `Volume`, `Image`,
+`Network`, and `Cluster` — see [api/v1alpha1](api/v1alpha1) for the types
+and [config/samples](config/samples) for examples. Each has a matching
 controller under [internal/controller](internal/controller) that follows
 the same pattern:
 
@@ -40,6 +41,13 @@ no-op against STACKIT. Leave `existingId` unset for the operator to own the
 resource's full lifecycle instead. Changing `existingId` after a resource
 has already been created or adopted is unsupported (there is no webhook to
 guard against it).
+
+`Cluster` supports the same bring-your-own pattern through
+`spec.existingClusterName` instead of `spec.existingId`: SKE has no
+server-assigned UUID of its own, the cluster name doubles as its only
+identifier, so the adopt field takes a name rather than a UUID. Semantics
+are otherwise identical (observe-only, no finalizer, `spec.kubernetesVersion`
+and `spec.nodePools` are ignored and may be left unset).
 
 ### Referencing Volume/Image/Network from Server
 
@@ -86,6 +94,35 @@ later reconcile observes `status.state == AVAILABLE`. In practice, most
 `Image` usage is expected to be `spec.existingId` (adopt an
 already-prepared image) rather than creating one through this operator.
 
+### Clusters (STACKIT Kubernetes Engine)
+
+`Cluster` reconciles against a different STACKIT API (SKE, not IaaS) with a
+different resource model, so it differs from `Server`/`Volume`/`Image`/`Network`
+in a few ways:
+
+- SKE identifies a cluster purely by name (there's no separate UUID), and
+  its create/update endpoint (`CreateOrUpdateCluster`) is a single
+  idempotent upsert used for both. This operator uses it for creation *and*
+  for correcting drift, resubmitting the whole desired
+  `kubernetesVersion`/`nodePools`/`maintenance` on any detected change
+  rather than a partial patch.
+- `spec.nodePools` configures worker node pools (machine type/image, size
+  bounds, availability zones, volume); at least one pool must set
+  `allowSystemComponents: true`, matching SKE's own requirement.
+- `spec.maintenance` is optional and all-or-nothing: set
+  `autoUpdateKubernetesVersion`/`autoUpdateMachineImageVersion` and a
+  `start`/`end` time window together, or omit the whole section to keep
+  SKE's own default maintenance window.
+- `status.state` mirrors SKE's aggregated cluster state (e.g.
+  `STATE_HEALTHY`, `STATE_CREATING`, `STATE_UNHEALTHY`, `STATE_HIBERNATED`);
+  the `Ready` condition is `True` for both `STATE_HEALTHY` and
+  `STATE_HIBERNATED` (a hibernated cluster is a valid steady state, not an
+  error).
+- This operator doesn't manage kubeconfig retrieval, hibernation
+  scheduling, credential rotation, or the cluster's `access`/`extensions`
+  settings; see [config/samples/compute_v1alpha1_cluster.yaml](config/samples/compute_v1alpha1_cluster.yaml)
+  for the fields it does manage.
+
 ## Authentication
 
 The operator uses the SDK's default credential resolution, no STACKIT
@@ -102,8 +139,9 @@ kubectl create secret generic stackit-credentials \
 
 [config/manager/manager.yaml](config/manager/manager.yaml) mounts that
 secret and sets `STACKIT_SERVICE_ACCOUNT_KEY_PATH` /
-`STACKIT_PRIVATE_KEY_PATH` accordingly. `spec.projectId` and `spec.region`
-are set per-resource (`Server`, `Volume`, `Image`, `Network`), so one
+`STACKIT_PRIVATE_KEY_PATH` accordingly. The same credentials authenticate
+both the IaaS and SKE API clients. `spec.projectId` and `spec.region` are
+set per-resource (`Server`, `Volume`, `Image`, `Network`, `Cluster`), so one
 operator instance can manage resources across multiple STACKIT
 projects/regions as long as the service account has access.
 
@@ -120,19 +158,21 @@ make run              # run the manager locally against your current kubeconfig
 
 `make test` covers payload construction ([internal/stackit](internal/stackit)) and
 reconcile logic ([internal/controller](internal/controller)) against a fake
-Kubernetes client and the STACKIT SDK's own `DefaultAPIServiceMock`, no
-network or external binaries required, for all four resource types
-including owned and `existingId`-adopted reconcile paths. `make
+Kubernetes client and each STACKIT SDK's own `DefaultAPIServiceMock` (IaaS's
+and SKE's), no network or external binaries required, for all five resource
+types including owned, `existingId`-adopted, and (for `Cluster`)
+`existingClusterName`-adopted reconcile paths. `make
 test-integration` additionally downloads envtest (a real `kube-apiserver` +
 `etcd`) on first run and drives the actual controller-runtime manager
-through full lifecycles for `Server`, `Volume`, `Image`, and `Network`
-(create → ready → delete; `Server` also covers power off) against stateful
-in-memory STACKIT fakes, plus an adopt-mode scenario confirming an adopted
-`Volume`'s underlying STACKIT resource survives CR deletion, to catch
-issues the fake-client tests can't (finalizer/status subresource semantics,
-requeue timing, watch-triggered reconciles). Cross-controller behavior
-(e.g. a Server waiting on a not-yet-ready `imageRef`/`networkRef`) is
-covered at the fake-client unit level only, not against envtest.
+through full lifecycles for `Server`, `Volume`, `Image`, `Network`, and
+`Cluster` (create → ready → delete; `Server` also covers power off) against
+stateful in-memory STACKIT fakes, plus adopt-mode scenarios confirming an
+adopted `Volume`'s and `Cluster`'s underlying STACKIT resource survives CR
+deletion, to catch issues the fake-client tests can't (finalizer/status
+subresource semantics, requeue timing, watch-triggered reconciles).
+Cross-controller behavior (e.g. a Server waiting on a not-yet-ready
+`imageRef`/`networkRef`) is covered at the fake-client unit level only, not
+against envtest.
 
 To build and deploy the container image:
 

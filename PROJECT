@@ -16,4 +16,13 @@ resources:
   kind: Server
   path: github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sostackit.dev
+  group: compute
+  kind: Cluster
+  path: github.com/bartvanbenthem/stackit-compute-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

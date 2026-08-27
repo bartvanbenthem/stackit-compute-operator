@@ -1,10 +1,11 @@
 // Package stackit wraps the official STACKIT Go SDK's IaaS (Compute Engine)
-// API so the controller package only deals with typed helpers instead of
-// raw SDK request builders.
+// and SKE (Kubernetes Engine) APIs so the controller package only deals
+// with typed helpers instead of raw SDK request builders.
 package stackit
 
 import (
 	iaas "github.com/stackitcloud/stackit-sdk-go/services/iaas/v2api"
+	ske "github.com/stackitcloud/stackit-sdk-go/services/ske/v2api"
 )
 
 // NewClient creates a STACKIT IaaS API client using the SDK's default
@@ -17,4 +18,10 @@ import (
 // the operator Deployment wires a Kubernetes Secret into these variables.
 func NewClient() (*iaas.APIClient, error) {
 	return iaas.NewAPIClient()
+}
+
+// NewSKEClient creates a STACKIT Kubernetes Engine (SKE) API client using
+// the same default authentication flow and credentials as NewClient.
+func NewSKEClient() (*ske.APIClient, error) {
+	return ske.NewAPIClient()
 }

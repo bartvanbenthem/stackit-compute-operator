@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/stackitcloud/stackit-sdk-go/core v0.26.0
 	github.com/stackitcloud/stackit-sdk-go/services/iaas v1.14.0
+	github.com/stackitcloud/stackit-sdk-go/services/ske v1.9.0
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.3
 	sigs.k8s.io/controller-runtime v0.20.4
