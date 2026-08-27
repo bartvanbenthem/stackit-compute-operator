@@ -27,7 +27,7 @@ const volumeFinalizer = "compute.sostackit.dev/volume-finalizer"
 var volumeTransitionalStates = map[string]bool{
 	"CREATING": true, "ATTACHING": true, "DETACHING": true, "DOWNLOADING": true,
 	"BACKING-UP": true, "RESIZING": true, "RESTORING-BACKUP": true, "RETYPING": true,
-	"UPLOADING": true, "AWAITING-TRANSFER": true, "MAINTENANCE": true,
+	"UPLOADING": true, "AWAITING-TRANSFER": true, "MAINTENANCE": true, "RESERVED": true,
 }
 
 // VolumeReconciler reconciles a Volume object against the STACKIT Compute

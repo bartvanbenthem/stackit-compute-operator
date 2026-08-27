@@ -200,6 +200,13 @@ func (r *ServerReconciler) resolveNetworkRef(ctx context.Context, server *comput
 // when spec.bootVolumeRef is set. Unlike image/network, this has no raw-ID
 // counterpart and is genuinely optional: an unset ref reports ready with an
 // empty ID, meaning "create a boot volume from the image as usual".
+//
+// Readiness requires the volume to be AVAILABLE, not just to have a
+// VolumeId: STACKIT assigns the ID as soon as creation is triggered, well
+// before the volume is usable as a boot source. Starting a server create
+// against a volume that's still CREATING (or RESERVED by another in-flight
+// create) fails with "Volume is in wrong state" - waiting for AVAILABLE
+// avoids hammering the API with those doomed attempts.
 func (r *ServerReconciler) resolveBootVolumeRef(ctx context.Context, server *computev1alpha1.Server) (id string, ready bool, err error) {
 	if server.Spec.BootVolumeRef == nil {
 		return "", true, nil
@@ -212,7 +219,7 @@ func (r *ServerReconciler) resolveBootVolumeRef(ctx context.Context, server *com
 		}
 		return "", false, err
 	}
-	return volume.Status.VolumeId, volume.Status.VolumeId != "", nil
+	return volume.Status.VolumeId, volume.Status.VolumeId != "" && volume.Status.State == "AVAILABLE", nil
 }
 
 // invalidReference records a permanent (non-retryable) reference validation

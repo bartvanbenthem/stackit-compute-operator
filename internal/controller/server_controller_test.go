@@ -293,7 +293,7 @@ func TestReconcileCreate_RejectsBothImageIdAndImageRef(t *testing.T) {
 func TestReconcileCreate_ResolvesBootVolumeRef(t *testing.T) {
 	volume := &computev1alpha1.Volume{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-boot-volume", Namespace: "default"},
-		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID},
+		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID, State: "AVAILABLE"},
 	}
 	server := newTestServer("srv", func(s *computev1alpha1.Server) {
 		controllerutil.AddFinalizer(s, serverFinalizer)
@@ -324,7 +324,7 @@ func TestReconcileCreate_ResolvesBootVolumeRef(t *testing.T) {
 func TestReconcileCreate_BootVolumeRefWithoutImage(t *testing.T) {
 	volume := &computev1alpha1.Volume{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-boot-volume", Namespace: "default"},
-		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID},
+		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID, State: "AVAILABLE"},
 	}
 	server := newTestServer("srv", func(s *computev1alpha1.Server) {
 		controllerutil.AddFinalizer(s, serverFinalizer)
@@ -346,6 +346,38 @@ func TestReconcileCreate_BootVolumeRefWithoutImage(t *testing.T) {
 	}
 	if !created {
 		t.Error("CreateServer was not called (bootVolumeRef alone should be enough without an image)")
+	}
+}
+
+// TestReconcileCreate_WaitsForBootVolumeAvailable verifies that a
+// bootVolumeRef with a VolumeId but a non-AVAILABLE state (e.g. still
+// CREATING, or RESERVED by another in-flight create) is treated as
+// not-ready: the controller must wait rather than call CreateServer, since
+// STACKIT rejects "Volume is in wrong state" for anything but AVAILABLE.
+func TestReconcileCreate_WaitsForBootVolumeAvailable(t *testing.T) {
+	volume := &computev1alpha1.Volume{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-boot-volume", Namespace: "default"},
+		Status:     computev1alpha1.VolumeStatus{VolumeId: testVolumeID, State: "RESERVED"},
+	}
+	server := newTestServer("srv", func(s *computev1alpha1.Server) {
+		controllerutil.AddFinalizer(s, serverFinalizer)
+		s.Spec.BootVolumeRef = &computev1alpha1.LocalObjectReference{Name: "my-boot-volume"}
+	})
+
+	mock := &iaas.DefaultAPIServiceMock{}
+	created := false
+	createFn := func(r iaas.ApiCreateServerRequest) (*iaas.Server, error) {
+		created = true
+		return &iaas.Server{Id: utils.Ptr(testServerID), Status: utils.Ptr("CREATING"), MachineType: "c1.2"}, nil
+	}
+	mock.CreateServerExecuteMock = &createFn
+
+	r := newReconciler(t, mock, server, volume)
+	if _, err := r.Reconcile(context.Background(), reconcileRequest(server)); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if created {
+		t.Error("CreateServer was called while boot volume was RESERVED, not AVAILABLE")
 	}
 }
 
