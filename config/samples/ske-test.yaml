@@ -1,7 +1,7 @@
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Cluster
 metadata:
-  name: sotest
+  name: ssotest
 spec:
   projectId: cc9fd01d-494c-4d8a-850a-cbc54939a006
   region: eu01

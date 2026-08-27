@@ -31,16 +31,24 @@ func IsConflict(err error) bool {
 }
 
 // IsTransientAuthError reports whether err is STACKIT's token endpoint
-// rejecting the SDK's authentication assertion with "invalid_grant"/"invalid
+// rejecting the SDK's authentication assertion specifically with "invalid
 // iat". In practice this happens when the local clock is briefly skewed
 // relative to STACKIT's (e.g. a WSL2 guest clock catching up right after the
 // host wakes), and it reliably clears on the very next token request once
 // the clock has settled. Callers should log this at a lower severity and
 // requeue rather than surface it as a hard reconcile error.
+//
+// This deliberately checks for "invalid iat" rather than the broader
+// "invalid_grant" error code: invalid_grant also covers permanent failures
+// such as a revoked or expired service account key, which must not be
+// silently retried forever - those should surface as a normal reconcile
+// error instead.
 func IsTransientAuthError(err error) bool {
 	var oapiErr *oapierror.GenericOpenAPIError
 	if errors.As(err, &oapiErr) {
-		return oapiErr.StatusCode == http.StatusBadRequest && bytes.Contains(oapiErr.Body, []byte("invalid_grant"))
+		return oapiErr.StatusCode == http.StatusBadRequest &&
+			bytes.Contains(oapiErr.Body, []byte("invalid_grant")) &&
+			bytes.Contains(oapiErr.Body, []byte("invalid iat"))
 	}
 	return false
 }

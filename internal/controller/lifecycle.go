@@ -66,7 +66,7 @@ func demoteTransientAuthError(ctx context.Context, result ctrl.Result, err error
 	if err == nil || !stackit.IsTransientAuthError(err) {
 		return result, err
 	}
-	log.FromContext(ctx).Info("transient STACKIT auth error, retrying", "reason", err.Error())
+	log.FromContext(ctx).Info("STACKIT auth token rejected, retrying automatically", "detail", err.Error())
 	return ctrl.Result{RequeueAfter: pollInterval}, nil
 }
 

@@ -37,9 +37,11 @@ func TestIsTransientAuthError(t *testing.T) {
 	}{
 		{"nil error", nil, false},
 		{"plain error", errors.New("boom"), false},
-		{"invalid_grant 400 error", oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil), true},
-		{"wrapped invalid_grant 400 error", errWrap{oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil)}, true},
+		{"invalid_grant/invalid iat 400 error", oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil), true},
+		{"wrapped invalid_grant/invalid iat 400 error", errWrap{oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil)}, true},
 		{"unrelated 400 error", oapierror.NewErrorWithBody(400, "", []byte(`{"error":"invalid_request"}`), nil), false},
+		{"invalid_grant without invalid iat (e.g. revoked key) is not transient",
+			oapierror.NewErrorWithBody(400, "", []byte(`{"error":"invalid_grant","error_description":"invalid credentials"}`), nil), false},
 		{"404 error", oapierror.NewError(404, "not found"), false},
 	}
 	for _, tt := range tests {
