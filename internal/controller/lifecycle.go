@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -10,6 +12,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
+)
+
+const (
+	readyConditionType = "Ready"
+
+	// pollInterval is the default requeue delay used while actively waiting
+	// on a transitional external state, and by demoteTransientAuthError's
+	// short retry after a transient STACKIT auth failure. Server and Cluster
+	// override this with a longer, resource-specific poll interval.
+	pollInterval  = 10 * time.Second
+	errorInterval = time.Minute
+	resyncPeriod  = 5 * time.Minute
 )
 
 // isAdopted reports whether a resource references an existing STACKIT
@@ -31,6 +45,38 @@ func derefBool(v *bool) bool {
 		return false
 	}
 	return *v
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// labelsEqual reports whether every desired label is present in current
+// with the same value. Extra labels present only in current (e.g. STACKIT's
+// own "stackit-" prefixed labels) are ignored.
+func labelsEqual(current map[string]interface{}, desired map[string]string) bool {
+	for k, v := range desired {
+		cv, ok := current[k]
+		if !ok {
+			return false
+		}
+		if fmt.Sprintf("%v", cv) != v {
+			return false
+		}
+	}
+	return true
+}
+
+// namespaceOrClusterScoped returns ns for display in logs, substituting a
+// placeholder when ns is empty (cluster-scoped resources have no namespace).
+func namespaceOrClusterScoped(ns string) string {
+	if ns == "" {
+		return "<cluster-scoped>"
+	}
+	return ns
 }
 
 // ensureFinalizer adds finalizer to obj and persists the change if it isn't

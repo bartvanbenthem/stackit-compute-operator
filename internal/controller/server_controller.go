@@ -20,14 +20,12 @@ import (
 	"github.com/bartvanbenthem/stackit-compute-operator/internal/stackit"
 )
 
-const (
-	serverFinalizer    = "compute.sostackit.dev/server-finalizer"
-	readyConditionType = "Ready"
+const serverFinalizer = "compute.sostackit.dev/server-finalizer"
 
-	pollInterval  = 10 * time.Second
-	errorInterval = time.Minute
-	resyncPeriod  = 5 * time.Minute
-)
+// serverPollInterval overrides the default pollInterval: server operations
+// (create, power state changes, deletion) settle slower than the other IaaS
+// resources, so polling every 10s just adds needless STACKIT API load.
+const serverPollInterval = 30 * time.Second
 
 // transitionalStates are STACKIT server states in which the controller
 // should only observe and requeue, without attempting further actions.
@@ -60,6 +58,8 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, server); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	log.FromContext(ctx).Info("running server reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
 
 	result, err := r.reconcile(ctx, server)
 	return demoteTransientAuthError(ctx, result, err)
@@ -109,7 +109,7 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 				return ctrl.Result{}, statusErr
 			}
 		}
-		return ctrl.Result{RequeueAfter: pollInterval}, nil
+		return ctrl.Result{RequeueAfter: serverPollInterval}, nil
 	}
 
 	name := serverName(server)
@@ -139,7 +139,7 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 	}
 
 	logger.Info("triggered server creation", "serverId", server.Status.ServerId)
-	return ctrl.Result{RequeueAfter: pollInterval}, nil
+	return ctrl.Result{RequeueAfter: serverPollInterval}, nil
 }
 
 // resolveImageRef resolves the server's desired image ID from exactly one
@@ -268,7 +268,7 @@ func (r *ServerReconciler) reconcileExisting(ctx context.Context, server *comput
 				return ctrl.Result{}, err
 			}
 		}
-		return ctrl.Result{RequeueAfter: pollInterval}, nil
+		return ctrl.Result{RequeueAfter: serverPollInterval}, nil
 
 	case state == "ERROR":
 		r.setReadyCondition(server, metav1.ConditionFalse, "Error", derefString(current.ErrorMessage))
@@ -399,7 +399,7 @@ func (r *ServerReconciler) reconcileDelete(ctx context.Context, server *computev
 		logger.Info("triggered server deletion", "serverId", serverID)
 	}
 
-	return ctrl.Result{RequeueAfter: pollInterval}, nil
+	return ctrl.Result{RequeueAfter: serverPollInterval}, nil
 }
 
 func (r *ServerReconciler) applyServerStatus(server *computev1alpha1.Server, current *iaas.Server) {
@@ -437,29 +437,6 @@ func serverName(server *computev1alpha1.Server) string {
 		return server.Spec.Name
 	}
 	return server.Name
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-// labelsEqual reports whether every desired label is present in current
-// with the same value. Extra labels present only in current (e.g. STACKIT's
-// own "stackit-" prefixed labels) are ignored.
-func labelsEqual(current map[string]interface{}, desired map[string]string) bool {
-	for k, v := range desired {
-		cv, ok := current[k]
-		if !ok {
-			return false
-		}
-		if fmt.Sprintf("%v", cv) != v {
-			return false
-		}
-	}
-	return true
 }
 
 // SetupWithManager sets up the controller with the Manager.

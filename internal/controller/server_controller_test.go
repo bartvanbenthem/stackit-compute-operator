@@ -149,8 +149,8 @@ func TestReconcileCreate_Success(t *testing.T) {
 	if !created {
 		t.Error("CreateServer was not called")
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != serverPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, serverPollInterval)
 	}
 
 	got := getServer(t, r.Client, server.Name)
@@ -242,8 +242,8 @@ func TestReconcileCreate_WaitsForNetworkRefNotReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != serverPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, serverPollInterval)
 	}
 
 	got := getServer(t, r.Client, server.Name)
@@ -404,8 +404,8 @@ func TestReconcileExisting_Transitional(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != serverPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, serverPollInterval)
 	}
 
 	got := getServer(t, r.Client, server.Name)
@@ -825,8 +825,8 @@ func TestReconcileDelete_TriggersDeleteOnce(t *testing.T) {
 	if !deleted {
 		t.Error("DeleteServer was not called")
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != serverPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, serverPollInterval)
 	}
 
 	got := getServer(t, r.Client, server.Name)
@@ -853,8 +853,8 @@ func TestReconcileDelete_SkipsDeleteWhenAlreadyDeleting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcileDelete() error = %v", err)
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != serverPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, serverPollInterval)
 	}
 }
 
