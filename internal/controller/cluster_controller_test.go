@@ -141,8 +141,8 @@ func TestClusterReconcileCreate_Success(t *testing.T) {
 	if !created {
 		t.Error("CreateOrUpdateCluster was not called")
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != clusterPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, clusterPollInterval)
 	}
 
 	got := getCluster(t, r.Client, cluster.Name)
@@ -230,8 +230,8 @@ func TestClusterReconcileExisting_Transitional(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != clusterPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, clusterPollInterval)
 	}
 }
 
@@ -402,8 +402,8 @@ func TestClusterReconcileDelete_GetThenDelete(t *testing.T) {
 	if !deleted {
 		t.Error("DeleteCluster was not called")
 	}
-	if res.RequeueAfter != pollInterval {
-		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, pollInterval)
+	if res.RequeueAfter != clusterPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, clusterPollInterval)
 	}
 }
 

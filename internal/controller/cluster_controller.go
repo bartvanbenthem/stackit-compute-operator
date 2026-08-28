@@ -21,6 +21,11 @@ import (
 
 const clusterFinalizer = "compute.sostackit.dev/cluster-finalizer"
 
+// clusterPollInterval overrides the default pollInterval: SKE cluster
+// operations (create, hibernate/wake, delete) settle slower than the IaaS
+// resources, so polling every 10s just adds needless STACKIT API load.
+const clusterPollInterval = 30 * time.Second
+
 // clusterTransitionalStates are STACKIT SKE aggregated cluster states in
 // which the controller should only observe and requeue, without attempting
 // further actions.
@@ -138,7 +143,7 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 	}
 
 	logger.Info("triggered cluster creation", "clusterName", cluster.Status.ClusterName)
-	return ctrl.Result{RequeueAfter: pollInterval}, nil
+	return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
 }
 
 func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *computev1alpha1.Cluster, adopted bool) (ctrl.Result, error) {
@@ -183,7 +188,7 @@ func (r *ClusterReconciler) reconcileExisting(ctx context.Context, cluster *comp
 				return ctrl.Result{}, err
 			}
 		}
-		return ctrl.Result{RequeueAfter: pollInterval}, nil
+		return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
 
 	case state == "STATE_UNHEALTHY":
 		r.setReadyCondition(cluster, metav1.ConditionFalse, "Unhealthy", fmt.Sprintf("cluster is %s", state))
@@ -280,7 +285,7 @@ func (r *ClusterReconciler) reconcileDelete(ctx context.Context, cluster *comput
 		if err := stackit.DeleteCluster(ctx, r.StackitClient, projectID, region, name); err != nil {
 			if stackit.IsConflict(err) {
 				logger.Info("cluster not yet deletable, retrying", "clusterName", name, "reason", err.Error())
-				return ctrl.Result{RequeueAfter: pollInterval}, nil
+				return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
 			}
 			if !stackit.IsNotFound(err) {
 				return ctrl.Result{}, fmt.Errorf("deleting cluster: %w", err)
@@ -289,7 +294,7 @@ func (r *ClusterReconciler) reconcileDelete(ctx context.Context, cluster *comput
 		logger.Info("triggered cluster deletion", "clusterName", name)
 	}
 
-	return ctrl.Result{RequeueAfter: pollInterval}, nil
+	return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
 }
 
 func (r *ClusterReconciler) applyClusterStatus(cluster *computev1alpha1.Cluster, current *ske.Cluster) {
