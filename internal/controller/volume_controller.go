@@ -52,6 +52,8 @@ func (r *VolumeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	log.FromContext(ctx).Info("starting volume reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
+
 	result, err := r.reconcile(ctx, volume)
 	return demoteTransientAuthError(ctx, result, err)
 }

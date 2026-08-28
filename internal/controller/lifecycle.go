@@ -33,6 +33,15 @@ func derefBool(v *bool) bool {
 	return *v
 }
 
+// namespaceOrClusterScoped returns ns for display in logs, substituting a
+// placeholder when ns is empty (cluster-scoped resources have no namespace).
+func namespaceOrClusterScoped(ns string) string {
+	if ns == "" {
+		return "<cluster-scoped>"
+	}
+	return ns
+}
+
 // ensureFinalizer adds finalizer to obj and persists the change if it isn't
 // already present. It reports whether the finalizer was added.
 func ensureFinalizer(ctx context.Context, c client.Client, obj client.Object, finalizer string) (bool, error) {

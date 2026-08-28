@@ -53,6 +53,8 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	log.FromContext(ctx).Info("starting cluster reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
+
 	result, err := r.reconcile(ctx, cluster)
 	return demoteTransientAuthError(ctx, result, err)
 }
