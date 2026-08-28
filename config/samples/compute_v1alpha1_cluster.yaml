@@ -1,0 +1,25 @@
+apiVersion: compute.sostackit.dev/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster
+spec:
+  projectId: 11111111-1111-1111-1111-111111111111
+  region: eu01
+  kubernetesVersion: "1.35.6"
+  nodePools:
+    - name: pool-1
+      machineType: c2i.2
+      machineImageName: flatcar
+      machineImageVersion: "4593.2.2"
+      availabilityZones:
+        - eu01-1
+      minimum: 1
+      maximum: 3
+      allowSystemComponents: true
+      volume:
+        size: 32
+  maintenance:
+    autoUpdateKubernetesVersion: true
+    autoUpdateMachineImageVersion: true
+    start: "2024-01-01T02:00:00Z"
+    end: "2024-01-01T04:00:00Z"

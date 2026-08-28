@@ -8,6 +8,7 @@ import (
 	"github.com/stackitcloud/stackit-sdk-go/core/oapierror"
 	"github.com/stackitcloud/stackit-sdk-go/core/utils"
 	iaas "github.com/stackitcloud/stackit-sdk-go/services/iaas/v2api"
+	ske "github.com/stackitcloud/stackit-sdk-go/services/ske/v2api"
 )
 
 const fakeStackitServerID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -420,3 +421,110 @@ const (
 	fakeStackitImageID   = "aaaaaaaa-bbbb-cccc-dddd-222222222222"
 	fakeStackitNetworkID = "aaaaaaaa-bbbb-cccc-dddd-333333333333"
 )
+
+// fakeClusterBackend is fakeStackitBackend's counterpart for Cluster: a
+// minimal, single-cluster, stateful stand-in for STACKIT's SKE API. Unlike
+// the IaaS resources, SKE clusters are keyed by name rather than a
+// server-assigned UUID, and creation/update share one idempotent
+// CreateOrUpdateCluster endpoint.
+type fakeClusterBackend struct {
+	mu sync.Mutex
+
+	exists bool
+	name   string
+	state  ske.ClusterStatusState
+
+	deleteRequested bool
+	getsSinceDelete int
+}
+
+func newFakeClusterBackend() *fakeClusterBackend {
+	return &fakeClusterBackend{}
+}
+
+// seedExisting marks a cluster as already present in STACKIT without going
+// through CreateOrUpdateCluster, for adopt-mode ("existingClusterName")
+// tests.
+func (b *fakeClusterBackend) seedExisting(name string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.exists = true
+	b.name = name
+	b.state = ske.CLUSTERSTATUSSTATE_STATE_HEALTHY
+	b.deleteRequested = false
+	b.getsSinceDelete = 0
+}
+
+func (b *fakeClusterBackend) mock() *ske.DefaultAPIServiceMock {
+	mock := &ske.DefaultAPIServiceMock{}
+
+	createFn := func(r ske.ApiCreateOrUpdateClusterRequest) (*ske.Cluster, error) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		b.exists = true
+		b.name = fakeStackitClusterName
+		b.state = ske.CLUSTERSTATUSSTATE_STATE_CREATING
+		b.deleteRequested = false
+		b.getsSinceDelete = 0
+		return b.snapshotLocked(), nil
+	}
+	mock.CreateOrUpdateClusterExecuteMock = &createFn
+
+	getFn := func(r ske.ApiGetClusterRequest) (*ske.Cluster, error) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if !b.exists {
+			return nil, oapierror.NewError(404, "cluster not found")
+		}
+		if b.deleteRequested {
+			b.getsSinceDelete++
+			if b.getsSinceDelete >= 1 {
+				b.exists = false
+				return nil, oapierror.NewError(404, "cluster not found")
+			}
+		}
+		if b.state == ske.CLUSTERSTATUSSTATE_STATE_CREATING {
+			b.state = ske.CLUSTERSTATUSSTATE_STATE_HEALTHY
+		}
+		return b.snapshotLocked(), nil
+	}
+	mock.GetClusterExecuteMock = &getFn
+
+	deleteFn := func(r ske.ApiDeleteClusterRequest) (map[string]interface{}, error) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		b.deleteRequested = true
+		b.state = ske.CLUSTERSTATUSSTATE_STATE_DELETING
+		return nil, nil
+	}
+	mock.DeleteClusterExecuteMock = &deleteFn
+
+	return mock
+}
+
+func (b *fakeClusterBackend) snapshotLocked() *ske.Cluster {
+	state := b.state
+	return &ske.Cluster{
+		Name:       utils.Ptr(b.name),
+		Kubernetes: ske.Kubernetes{Version: "1.29.3"},
+		Nodepools: []ske.Nodepool{
+			{
+				Name:              "pool-1",
+				AvailabilityZones: []string{"eu01-1"},
+				Machine:           ske.Machine{Type: "c1.2", Image: ske.Image{Name: "flatcar", Version: "3815.2.0"}},
+				Minimum:           1,
+				Maximum:           3,
+				Volume:            ske.Volume{Size: 32},
+			},
+		},
+		Status: &ske.ClusterStatus{Aggregated: &state},
+	}
+}
+
+func (b *fakeClusterBackend) existsLocked() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.exists
+}
+
+const fakeStackitClusterName = "it-cluster"

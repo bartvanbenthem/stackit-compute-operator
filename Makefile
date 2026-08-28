@@ -3,6 +3,7 @@ IMG ?= controller:latest
 LOCALBIN ?= $(shell pwd)/bin
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.32.0
+KUSTOMIZE ?= $(LOCALBIN)/kustomize
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -27,6 +28,10 @@ test-integration: manifests fmt vet envtest ## Run integration tests against a r
 
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
+
+.PHONY: kustomize
+kustomize: $(LOCALBIN) ## Download the kustomize tool.
+	test -s $(KUSTOMIZE) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/kustomize/kustomize/v5@latest
 
 .PHONY: build
 build: fmt vet ## Build manager binary.
@@ -53,13 +58,13 @@ uninstall: ## Uninstall CRDs from the cluster configured in ~/.kube/config.
 	kubectl delete -f config/crd/bases --ignore-not-found
 
 .PHONY: deploy
-deploy: ## Deploy the controller to the cluster configured in ~/.kube/config.
-	cd config/manager && kustomize edit set image controller=${IMG}
-	kustomize build config/default | kubectl apply -f -
+deploy: kustomize ## Deploy the controller to the cluster configured in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
-undeploy: ## Undeploy the controller from the cluster configured in ~/.kube/config.
-	kustomize build config/default | kubectl delete --ignore-not-found -f -
+undeploy: kustomize ## Undeploy the controller from the cluster configured in ~/.kube/config.
+	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found -f -
 
 .PHONY: manifests
 manifests: ## Regenerate CRD YAML from Go type markers (requires controller-gen).

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	iaas "github.com/stackitcloud/stackit-sdk-go/services/iaas/v2api"
+	ske "github.com/stackitcloud/stackit-sdk-go/services/ske/v2api"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,6 +41,7 @@ var (
 	volumeBackend  *fakeVolumeBackend
 	imageBackend   *fakeImageBackend
 	networkBackend *fakeNetworkBackend
+	clusterBackend *fakeClusterBackend
 )
 
 func TestMain(m *testing.M) {
@@ -108,6 +110,17 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: networkBackend.mock()},
+	}).SetupWithManager(mgr); err != nil {
+		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
+		_ = testEnv.Stop()
+		os.Exit(1)
+	}
+
+	clusterBackend = newFakeClusterBackend()
+	if err := (&ClusterReconciler{
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		StackitClient: &ske.APIClient{DefaultAPI: clusterBackend.mock()},
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()

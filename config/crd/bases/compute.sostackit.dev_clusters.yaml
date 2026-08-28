@@ -1,0 +1,328 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: clusters.compute.sostackit.dev
+spec:
+  group: compute.sostackit.dev
+  names:
+    kind: Cluster
+    listKind: ClusterList
+    plural: clusters
+    singular: cluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.kubernetesVersion
+      name: K8sVersion
+      type: string
+    - jsonPath: .status.hibernated
+      name: Hibernated
+      type: boolean
+    - jsonPath: .status.clusterName
+      name: ClusterName
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Cluster is the Schema for the clusters API and represents the lifecycle
+          of a single STACKIT Kubernetes Engine (SKE) cluster, or a reference to
+          one that already exists.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ClusterSpec defines the desired state of a STACKIT Kubernetes Engine
+              (SKE) cluster.
+            properties:
+              existingClusterName:
+                description: |-
+                  ExistingClusterName references a cluster that already exists in
+                  STACKIT by its name. When set, the operator only observes that
+                  cluster: it never creates, updates, or deletes it, and never adds a
+                  finalizer. All other spec fields except ProjectId/Region are ignored.
+                  Changing this field after the resource has already been created or
+                  adopted is unsupported.
+                type: string
+              kubernetesVersion:
+                description: |-
+                  KubernetesVersion is the desired Kubernetes version, e.g. "1.29.3".
+                  See STACKIT's SKE provider-options for valid versions. Required unless
+                  ExistingClusterName is set, in which case it's ignored.
+                pattern: ^\d+\.\d+\.\d+$
+                type: string
+              maintenance:
+                description: |-
+                  Maintenance configures the cluster's maintenance window and
+                  auto-update behavior. SKE applies its own default when unset.
+                properties:
+                  autoUpdateKubernetesVersion:
+                    description: |-
+                      AutoUpdateKubernetesVersion enables automatic patch-version updates of
+                      the cluster's Kubernetes version during the maintenance window.
+                    type: boolean
+                  autoUpdateMachineImageVersion:
+                    description: |-
+                      AutoUpdateMachineImageVersion enables automatic updates of node pools'
+                      machine image version during the maintenance window.
+                    type: boolean
+                  end:
+                    description: End of the maintenance window, RFC3339.
+                    format: date-time
+                    type: string
+                  start:
+                    description: |-
+                      Start of the maintenance window, RFC3339, e.g.
+                      "2024-01-01T02:00:00Z". Only the time-of-day and day-of-week are
+                      meaningful to SKE; the date component is ignored.
+                    format: date-time
+                    type: string
+                required:
+                - end
+                - start
+                type: object
+              name:
+                description: |-
+                  Name of the cluster as it will appear in STACKIT. Defaults to the
+                  resource's metadata.name when unset. Unlike other resources, this
+                  name is SKE's only identifier for the cluster (there is no separate
+                  UUID), so it cannot be changed after creation.
+                type: string
+              nodePools:
+                description: |-
+                  NodePools configures the cluster's worker node pools. At least one
+                  pool must set allowSystemComponents to true. Required unless
+                  ExistingClusterName is set, in which case it's ignored.
+                items:
+                  description: NodePoolSpec configures one worker node pool of a Cluster.
+                  properties:
+                    allowSystemComponents:
+                      description: |-
+                        AllowSystemComponents allows SKE system components to be scheduled on
+                        this pool's nodes. At least one node pool in the cluster must set this
+                        to true.
+                      type: boolean
+                    availabilityZones:
+                      description: AvailabilityZones the pool's nodes are spread across,
+                        e.g. ["eu01-1"].
+                      items:
+                        type: string
+                      minItems: 1
+                      type: array
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Labels are applied to every node in the pool as Kubernetes node
+                        labels.
+                      type: object
+                    machineImageName:
+                      description: |-
+                        MachineImageName is the name of the machine image nodes boot from,
+                        e.g. "flatcar". See STACKIT's SKE provider-options for valid values.
+                      minLength: 1
+                      type: string
+                    machineImageVersion:
+                      description: MachineImageVersion is the version of MachineImageName
+                        to use.
+                      minLength: 1
+                      type: string
+                    machineType:
+                      description: MachineType (flavor) of nodes in this pool, e.g.
+                        "c1.2".
+                      minLength: 1
+                      type: string
+                    maximum:
+                      description: Maximum number of nodes in the pool.
+                      format: int64
+                      minimum: 1
+                      type: integer
+                    minimum:
+                      description: Minimum number of nodes in the pool.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    name:
+                      description: Name of the node pool. Maximum 15 characters.
+                      maxLength: 15
+                      minLength: 1
+                      type: string
+                    volume:
+                      description: Volume configures each node's root volume.
+                      properties:
+                        size:
+                          description: Size of each node's volume in GB.
+                          format: int64
+                          minimum: 1
+                          type: integer
+                        type:
+                          description: |-
+                            Type of the volume, e.g. "storage_premium_perf1". Defaults to SKE's
+                            standard volume type when unset.
+                          type: string
+                      required:
+                      - size
+                      type: object
+                  required:
+                  - availabilityZones
+                  - machineImageName
+                  - machineImageVersion
+                  - machineType
+                  - maximum
+                  - minimum
+                  - name
+                  - volume
+                  type: object
+                type: array
+              projectId:
+                description: ProjectId is the UUID of the STACKIT project the cluster
+                  belongs to.
+                pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                type: string
+              region:
+                description: Region the cluster is created in, e.g. "eu01".
+                minLength: 1
+                type: string
+            required:
+            - projectId
+            - region
+            type: object
+          status:
+            description: |-
+              ClusterStatus reflects the last observed state of a STACKIT Kubernetes
+              Engine (SKE) cluster.
+            properties:
+              clusterName:
+                description: |-
+                  ClusterName is the name of the cluster in STACKIT, whether created by
+                  this resource or adopted via spec.existingClusterName. This doubles as
+                  SKE's identifier for the cluster.
+                type: string
+              conditions:
+                description: |-
+                  Conditions represent the latest available observations of the
+                  cluster's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              egressAddressRanges:
+                description: |-
+                  EgressAddressRanges lists the outgoing CIDR ranges of traffic
+                  originating from workload on the cluster.
+                items:
+                  type: string
+                type: array
+              errors:
+                description: |-
+                  Errors lists any cluster errors currently reported by SKE, formatted
+                  as "<code>: <message>".
+                items:
+                  type: string
+                type: array
+              hibernated:
+                description: Hibernated reports whether the cluster is currently hibernated.
+                type: boolean
+              kubernetesVersion:
+                description: KubernetesVersion currently observed on the cluster in
+                  STACKIT.
+                type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent spec generation reconciled by
+                  the controller.
+                format: int64
+                type: integer
+              podAddressRanges:
+                description: PodAddressRanges lists the CIDR ranges used by pods on
+                  the cluster.
+                items:
+                  type: string
+                type: array
+              state:
+                description: |-
+                  State mirrors the STACKIT cluster's aggregated status, e.g.
+                  STATE_HEALTHY, STATE_CREATING, STATE_UNHEALTHY.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

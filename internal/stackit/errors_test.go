@@ -28,6 +28,31 @@ func TestIsNotFound(t *testing.T) {
 	}
 }
 
+func TestIsTransientAuthError(t *testing.T) {
+	invalidGrantBody := []byte(`{"error":"invalid_grant","error_description":"invalid iat"}`)
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"invalid_grant/invalid iat 400 error", oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil), true},
+		{"wrapped invalid_grant/invalid iat 400 error", errWrap{oapierror.NewErrorWithBody(400, "", invalidGrantBody, nil)}, true},
+		{"unrelated 400 error", oapierror.NewErrorWithBody(400, "", []byte(`{"error":"invalid_request"}`), nil), false},
+		{"invalid_grant without invalid iat (e.g. revoked key) is not transient",
+			oapierror.NewErrorWithBody(400, "", []byte(`{"error":"invalid_grant","error_description":"invalid credentials"}`), nil), false},
+		{"404 error", oapierror.NewError(404, "not found"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsTransientAuthError(tt.err); got != tt.want {
+				t.Errorf("IsTransientAuthError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 // errWrap wraps an error to exercise errors.As unwrapping in IsNotFound.
 type errWrap struct{ err error }
 
