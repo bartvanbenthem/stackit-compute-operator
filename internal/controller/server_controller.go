@@ -61,7 +61,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log.FromContext(ctx).Info("starting server reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
+	log.FromContext(ctx).Info("running server reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
 
 	result, err := r.reconcile(ctx, server)
 	return demoteTransientAuthError(ctx, result, err)

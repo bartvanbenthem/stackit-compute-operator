@@ -48,7 +48,7 @@ func (r *ImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	log.FromContext(ctx).Info("starting image reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
+	log.FromContext(ctx).Info("running image reconciliation", "name", req.Name, "namespace", namespaceOrClusterScoped(req.Namespace))
 
 	result, err := r.reconcile(ctx, image)
 	return demoteTransientAuthError(ctx, result, err)
