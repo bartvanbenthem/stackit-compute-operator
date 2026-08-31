@@ -1,7 +1,8 @@
-# Demonstrates referencing Image/Network/Volume resources instead of raw
-# STACKIT IDs. imageRef/networkRef/bootVolumeRef are resolved to their
-# referenced resource's status.<x>Id once that resource is Ready; the
-# server is only created once all referenced resources are ready.
+# Demonstrates referencing Network/Volume resources instead of raw STACKIT
+# IDs. networkRef/bootVolumeRef are resolved to their referenced resource's
+# status.<x>Id once that resource is Ready; the server is only created once
+# all referenced resources are ready. Images have no corresponding CRD, so
+# imageId always takes a raw STACKIT UUID.
 apiVersion: compute.sostackit.dev/v1alpha1
 kind: Server
 metadata:
@@ -11,8 +12,7 @@ spec:
   region: eu01
   machineType: c1.2
   availabilityZone: eu01-1
-  imageRef:
-    name: ubuntu-22-04
+  imageId: 22222222-2222-2222-2222-222222222222
   networkRef:
     name: prod-network
   bootVolumeRef:

@@ -189,36 +189,6 @@ func TestReconcileCreate_APIError(t *testing.T) {
 
 // --- reference resolution ---
 
-func TestReconcileCreate_ResolvesImageRefToID(t *testing.T) {
-	image := &computev1alpha1.Image{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-image", Namespace: "default"},
-		Status:     computev1alpha1.ImageStatus{ImageId: testImageID},
-	}
-	server := newTestServer("srv", func(s *computev1alpha1.Server) {
-		controllerutil.AddFinalizer(s, serverFinalizer)
-		s.Spec.ImageId = ""
-		s.Spec.ImageRef = &computev1alpha1.LocalObjectReference{Name: "my-image"}
-	})
-
-	mock := &iaas.DefaultAPIServiceMock{}
-	createFn := func(r iaas.ApiCreateServerRequest) (*iaas.Server, error) {
-		return &iaas.Server{Id: utils.Ptr(testServerID), Status: utils.Ptr("CREATING"), MachineType: "c1.2"}, nil
-	}
-	mock.CreateServerExecuteMock = &createFn
-
-	r := newReconciler(t, mock, server, image)
-	_, err := r.Reconcile(context.Background(), reconcileRequest(server))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-
-	got := getServer(t, r.Client, server.Name)
-	cond := readyCondition(got)
-	if cond == nil || cond.Reason != "Creating" {
-		t.Errorf("Ready condition = %+v, want reason Creating (server should have been created)", cond)
-	}
-}
-
 func TestReconcileCreate_WaitsForNetworkRefNotReady(t *testing.T) {
 	network := &computev1alpha1.Network{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-network", Namespace: "default"},
@@ -249,36 +219,6 @@ func TestReconcileCreate_WaitsForNetworkRefNotReady(t *testing.T) {
 	got := getServer(t, r.Client, server.Name)
 	if got.Status.ServerId != "" {
 		t.Errorf("Status.ServerId = %q, want empty", got.Status.ServerId)
-	}
-}
-
-func TestReconcileCreate_RejectsBothImageIdAndImageRef(t *testing.T) {
-	server := newTestServer("srv", func(s *computev1alpha1.Server) {
-		controllerutil.AddFinalizer(s, serverFinalizer)
-		// ImageId is already set by newTestServer; also set ImageRef.
-		s.Spec.ImageRef = &computev1alpha1.LocalObjectReference{Name: "my-image"}
-	})
-
-	mock := &iaas.DefaultAPIServiceMock{}
-	createFn := func(r iaas.ApiCreateServerRequest) (*iaas.Server, error) {
-		t.Error("CreateServer was called despite an invalid reference")
-		return nil, nil
-	}
-	mock.CreateServerExecuteMock = &createFn
-
-	r := newReconciler(t, mock, server)
-	res, err := r.Reconcile(context.Background(), reconcileRequest(server))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-	if res.Requeue || res.RequeueAfter != 0 {
-		t.Errorf("Result = %+v, want empty (no requeue on a permanent validation error)", res)
-	}
-
-	got := getServer(t, r.Client, server.Name)
-	cond := readyCondition(got)
-	if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != "InvalidReference" {
-		t.Errorf("Ready condition = %+v, want False/InvalidReference", cond)
 	}
 }
 
@@ -318,9 +258,9 @@ func TestReconcileCreate_ResolvesBootVolumeRef(t *testing.T) {
 }
 
 // TestReconcileCreate_BootVolumeRefWithoutImage verifies that
-// spec.bootVolumeRef alone, with neither spec.imageId nor spec.imageRef
-// set, is enough to create the server - per BootVolumeRef's doc comment in
-// server_types.go, an existing boot Volume makes the image unnecessary.
+// spec.bootVolumeRef alone, with spec.imageId unset, is enough to create
+// the server - per BootVolumeRef's doc comment in server_types.go, an
+// existing boot Volume makes the image unnecessary.
 func TestReconcileCreate_BootVolumeRefWithoutImage(t *testing.T) {
 	volume := &computev1alpha1.Volume{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-boot-volume", Namespace: "default"},

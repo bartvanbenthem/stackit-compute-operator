@@ -1,7 +1,7 @@
 // Command manager runs the stackit-compute-operator controller manager, which
-// reconciles compute.sostackit.dev/v1alpha1 Server, Volume, Image, and
-// Network resources against the STACKIT Compute Engine (IaaS) API, and
-// Cluster resources against the STACKIT Kubernetes Engine (SKE) API.
+// reconciles compute.sostackit.dev/v1alpha1 Server, Volume, and Network
+// resources against the STACKIT Compute Engine (IaaS) API, and Cluster
+// resources against the STACKIT Kubernetes Engine (SKE) API.
 package main
 
 import (
@@ -89,15 +89,6 @@ func main() {
 		StackitClient: stackitClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Volume")
-		os.Exit(1)
-	}
-
-	if err := (&controller.ImageReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		StackitClient: stackitClient,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Image")
 		os.Exit(1)
 	}
 

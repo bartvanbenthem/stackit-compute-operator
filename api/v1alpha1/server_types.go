@@ -59,27 +59,21 @@ type ServerSpec struct {
 	AvailabilityZone string `json:"availabilityZone,omitempty"`
 
 	// ImageId is the UUID of the image the boot volume is created from.
-	// Mutually exclusive with ImageRef; exactly one of the two must be set.
+	// Required unless BootVolumeRef is set, since the server then boots from
+	// that existing Volume instead of an image.
 	// +kubebuilder:validation:Pattern=`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 	// +optional
 	ImageId string `json:"imageId,omitempty"`
 
-	// ImageRef references an Image resource whose status.imageId is used
-	// instead of ImageId. Mutually exclusive with ImageId; exactly one of
-	// the two must be set.
-	// +optional
-	ImageRef *LocalObjectReference `json:"imageRef,omitempty"`
-
-	// BootVolume configures the server's root volume created from ImageId
-	// or ImageRef. Ignored (Size/PerformanceClass) when BootVolumeRef is
-	// set, since the volume already exists in that case.
+	// BootVolume configures the server's root volume created from ImageId.
+	// Ignored (Size/PerformanceClass) when BootVolumeRef is set, since the
+	// volume already exists in that case.
 	// +optional
 	BootVolume BootVolumeSpec `json:"bootVolume,omitempty"`
 
 	// BootVolumeRef references an existing Volume resource to boot from
-	// instead of creating a new boot volume from ImageId/ImageRef. The
-	// referenced Volume must already exist (be Ready) before the server can
-	// be created.
+	// instead of creating a new boot volume from ImageId. The referenced
+	// Volume must already exist (be Ready) before the server can be created.
 	// +optional
 	BootVolumeRef *LocalObjectReference `json:"bootVolumeRef,omitempty"`
 
