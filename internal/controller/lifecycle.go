@@ -103,17 +103,18 @@ func removeFinalizerAndUpdate(ctx context.Context, c client.Client, obj client.O
 }
 
 // demoteTransientAuthError downgrades a transient STACKIT auth token error
-// (see stackit.IsTransientAuthError) from a hard reconcile error to a
-// debug-level log plus a fixed short requeue. Left as a normal error,
+// (see stackit.IsTransientAuthError) from a hard reconcile error to an
+// info-level log plus a fixed short requeue. Left as a normal error,
 // controller-runtime would log it at error level with a stack trace and
 // apply its exponential backoff, even though this specific failure reliably
-// clears on the very next attempt. Logged at V(1) rather than dropped
-// entirely so it's still visible when diagnosing repeated token rejections.
+// clears on the very next attempt. Logged at the default level (not V(1))
+// so it's visible without extra flags - a silent retry loop here previously
+// made real clock-skew problems indistinguishable from "nothing is happening".
 func demoteTransientAuthError(ctx context.Context, result ctrl.Result, err error) (ctrl.Result, error) {
 	if err == nil || !stackit.IsTransientAuthError(err) {
 		return result, err
 	}
-	log.FromContext(ctx).V(1).Info("STACKIT auth token rejected, retrying automatically", "detail", err.Error())
+	log.FromContext(ctx).Info("STACKIT auth token rejected (invalid iat, likely clock skew), retrying automatically", "detail", err.Error())
 	return ctrl.Result{RequeueAfter: pollInterval}, nil
 }
 
