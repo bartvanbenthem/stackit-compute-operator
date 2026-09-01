@@ -70,6 +70,7 @@ func newReconciler(t *testing.T, mock *iaas.DefaultAPIServiceMock, objs ...clien
 		Client:        fakeClient,
 		Scheme:        newTestScheme(t),
 		StackitClient: &iaas.APIClient{DefaultAPI: mock},
+		APIReader:     fakeClient,
 	}
 }
 
@@ -160,6 +161,42 @@ func TestReconcileCreate_Success(t *testing.T) {
 	cond := readyCondition(got)
 	if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != "Creating" {
 		t.Errorf("Ready condition = %+v, want False/Creating", cond)
+	}
+}
+
+func TestReconcileCreate_ConcurrentReconcileAlreadyCreated_SkipsDuplicateCreate(t *testing.T) {
+	// The object stored in the API server already has a ServerId, as if a
+	// concurrent reconcile just created it and wrote status.
+	stored := newTestServer("srv", func(s *computev1alpha1.Server) {
+		controllerutil.AddFinalizer(s, serverFinalizer)
+		s.Status.ServerId = testServerID
+	})
+
+	mock := &iaas.DefaultAPIServiceMock{}
+	createCalled := false
+	createFn := func(r iaas.ApiCreateServerRequest) (*iaas.Server, error) {
+		createCalled = true
+		return nil, nil
+	}
+	mock.CreateServerExecuteMock = &createFn
+
+	r := newReconciler(t, mock, stored)
+
+	// This in-memory copy is stale: it predates the concurrent reconcile's
+	// status write, so its ServerId still reads as unset.
+	stale := newTestServer("srv", func(s *computev1alpha1.Server) {
+		controllerutil.AddFinalizer(s, serverFinalizer)
+	})
+
+	res, err := r.reconcileCreate(context.Background(), stale)
+	if err != nil {
+		t.Fatalf("reconcileCreate() error = %v", err)
+	}
+	if createCalled {
+		t.Error("CreateServer was called even though the server was already created concurrently")
+	}
+	if !res.Requeue {
+		t.Errorf("Result = %+v, want Requeue: true", res)
 	}
 }
 

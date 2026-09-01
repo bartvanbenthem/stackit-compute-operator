@@ -36,6 +36,12 @@ type VolumeReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT volume when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=volumes,verbs=get;list;watch;create;update;patch;delete
@@ -110,6 +116,13 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 			}
 		}
 		logger.Info("adopted existing volume", "volumeId", id)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, volume, func() string { return volume.Status.VolumeId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking volume before create: %w", err)
+	} else if already {
+		logger.Info("volume already created by a concurrent reconcile, skipping duplicate create", "volumeId", volume.Status.VolumeId)
 		return ctrl.Result{Requeue: true}, nil
 	}
 

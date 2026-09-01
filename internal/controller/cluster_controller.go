@@ -124,13 +124,25 @@ func (r *ClusterReconciler) reconcileCreate(ctx context.Context, cluster *comput
 
 	created, err := stackit.CreateOrUpdateCluster(ctx, r.StackitClient, projectID, region, name, payload)
 	if err != nil {
-		r.setReadyCondition(cluster, metav1.ConditionFalse, "CreateFailed", err.Error())
-		if !statusUnchanged(before, cluster.Status) {
-			if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
-				logger.Error(statusErr, "unable to update Cluster status after create failure")
+		if stackit.IsAlreadyExists(err) {
+			// A concurrent reconcile already created this cluster in STACKIT
+			// before this one's cached view picked up the resulting status
+			// update; adopt the now-existing cluster instead of failing.
+			logger.Info("cluster already exists in STACKIT, adopting its status", "clusterName", name)
+			current, getErr := stackit.GetCluster(ctx, r.StackitClient, projectID, region, name)
+			if getErr != nil {
+				return ctrl.Result{}, fmt.Errorf("fetching cluster after AlreadyExists: %w", getErr)
 			}
+			created = current
+		} else {
+			r.setReadyCondition(cluster, metav1.ConditionFalse, "CreateFailed", err.Error())
+			if !statusUnchanged(before, cluster.Status) {
+				if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+					logger.Error(statusErr, "unable to update Cluster status after create failure")
+				}
+			}
+			return ctrl.Result{}, fmt.Errorf("creating cluster: %w", err)
 		}
-		return ctrl.Result{}, fmt.Errorf("creating cluster: %w", err)
 	}
 
 	cluster.Status.ClusterName = name

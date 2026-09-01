@@ -118,6 +118,22 @@ func demoteTransientAuthError(ctx context.Context, result ctrl.Result, err error
 	return ctrl.Result{RequeueAfter: pollInterval}, nil
 }
 
+// idAlreadyPresent re-fetches obj directly from the API server, bypassing
+// the informer cache, and reports whether getID (a closure reading obj's
+// now-refreshed status) returns a non-empty ID. reconcileCreate calls this
+// immediately before issuing a create request to STACKIT: unlike the
+// Cluster API (an upsert keyed by name, see stackit.IsAlreadyExists),
+// Server/Network/Volume creates are plain ID-generating POSTs, so two
+// reconciles racing on a stale cached view of Status.<ID> == "" would
+// otherwise each create a separate, orphaned STACKIT resource rather than
+// erroring.
+func idAlreadyPresent(ctx context.Context, reader client.Reader, obj client.Object, getID func() string) (bool, error) {
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return false, err
+	}
+	return getID() != "", nil
+}
+
 // statusUnchanged reports whether a status value snapshotted before
 // reconciling still matches after observed state was applied to it. Callers
 // use this to skip a Status().Update() write - and the resourceVersion bump

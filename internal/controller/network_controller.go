@@ -33,6 +33,12 @@ type NetworkReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT network when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=networks,verbs=get;list;watch;create;update;patch;delete
@@ -107,6 +113,13 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 			}
 		}
 		logger.Info("adopted existing network", "networkId", id)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, network, func() string { return network.Status.NetworkId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking network before create: %w", err)
+	} else if already {
+		logger.Info("network already created by a concurrent reconcile, skipping duplicate create", "networkId", network.Status.NetworkId)
 		return ctrl.Result{Requeue: true}, nil
 	}
 

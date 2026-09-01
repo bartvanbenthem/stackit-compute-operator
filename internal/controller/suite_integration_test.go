@@ -76,6 +76,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: backend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()
@@ -87,6 +88,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: volumeBackend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()
@@ -98,6 +100,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: networkBackend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()

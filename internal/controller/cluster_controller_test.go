@@ -151,6 +151,40 @@ func TestClusterReconcileCreate_Success(t *testing.T) {
 	}
 }
 
+func TestClusterReconcileCreate_AlreadyExists_AdoptsStatus(t *testing.T) {
+	cluster := newTestCluster("clu", func(c *computev1alpha1.Cluster) {
+		controllerutil.AddFinalizer(c, clusterFinalizer)
+	})
+
+	mock := &ske.DefaultAPIServiceMock{}
+	createFn := func(r ske.ApiCreateOrUpdateClusterRequest) (*ske.Cluster, error) {
+		body := []byte(`{"code":"AlreadyExists","message":"already exists: cluster with name \"clu\""}`)
+		return nil, oapierror.NewErrorWithBody(409, "Conflict", body, nil)
+	}
+	mock.CreateOrUpdateClusterExecuteMock = &createFn
+	getFn := func(r ske.ApiGetClusterRequest) (*ske.Cluster, error) {
+		return healthyClusterResponse(), nil
+	}
+	mock.GetClusterExecuteMock = &getFn
+
+	r := newClusterReconciler(t, mock, cluster)
+	res, err := r.Reconcile(context.Background(), clusterReconcileRequest(cluster))
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if res.RequeueAfter != clusterPollInterval {
+		t.Errorf("RequeueAfter = %v, want %v", res.RequeueAfter, clusterPollInterval)
+	}
+
+	got := getCluster(t, r.Client, cluster.Name)
+	if got.Status.ClusterName != "clu" {
+		t.Errorf("Status.ClusterName = %q, want %q", got.Status.ClusterName, "clu")
+	}
+	if got.Status.State != string(ske.CLUSTERSTATUSSTATE_STATE_HEALTHY) {
+		t.Errorf("Status.State = %q, want %q", got.Status.State, ske.CLUSTERSTATUSSTATE_STATE_HEALTHY)
+	}
+}
+
 func TestClusterReconcileCreate_Adopted_Success(t *testing.T) {
 	cluster := newTestCluster("clu", func(c *computev1alpha1.Cluster) {
 		c.Spec.ExistingClusterName = utils.Ptr("clu")

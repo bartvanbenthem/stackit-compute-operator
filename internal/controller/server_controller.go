@@ -43,6 +43,12 @@ type ServerReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT server when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=servers,verbs=get;list;watch;create;update;patch;delete
@@ -87,6 +93,14 @@ func (r *ServerReconciler) reconcile(ctx context.Context, server *computev1alpha
 
 func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev1alpha1.Server) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, server, func() string { return server.Status.ServerId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking server before create: %w", err)
+	} else if already {
+		logger.Info("server already created by a concurrent reconcile, skipping duplicate create", "serverId", server.Status.ServerId)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	before := *server.Status.DeepCopy()
 
 	imageID, imageReady, err := r.resolveImage(server)
