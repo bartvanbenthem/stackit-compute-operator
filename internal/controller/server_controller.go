@@ -389,11 +389,21 @@ func (r *ServerReconciler) reconcileDelete(ctx context.Context, server *computev
 		return ctrl.Result{}, fmt.Errorf("checking server before deletion: %w", err)
 	}
 
+	before := *server.Status.DeepCopy()
+	r.applyServerStatus(server, current)
+
 	if derefString(current.Status) != "DELETING" {
 		if err := stackit.DeleteServer(ctx, r.StackitClient, projectID, region, serverID); err != nil && !stackit.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("deleting server: %w", err)
 		}
 		logger.Info("triggered server deletion", "serverId", serverID)
+	}
+
+	r.setReadyCondition(server, metav1.ConditionFalse, "Deleting", fmt.Sprintf("server is %s", server.Status.State))
+	if !statusUnchanged(before, server.Status) {
+		if err := r.Status().Update(ctx, server); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: serverPollInterval}, nil

@@ -293,10 +293,19 @@ func (r *ClusterReconciler) reconcileDelete(ctx context.Context, cluster *comput
 		return ctrl.Result{}, fmt.Errorf("checking cluster before deletion: %w", err)
 	}
 
+	before := *cluster.Status.DeepCopy()
+	r.applyClusterStatus(cluster, current)
+
 	if clusterAggregatedState(current) != "STATE_DELETING" {
 		if err := stackit.DeleteCluster(ctx, r.StackitClient, projectID, region, name); err != nil {
 			if stackit.IsConflict(err) {
 				logger.Info("cluster not yet deletable, retrying", "clusterName", name, "reason", err.Error())
+				r.setReadyCondition(cluster, metav1.ConditionFalse, "Deleting", fmt.Sprintf("cluster is %s", cluster.Status.State))
+				if !statusUnchanged(before, cluster.Status) {
+					if statusErr := r.Status().Update(ctx, cluster); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
+				}
 				return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
 			}
 			if !stackit.IsNotFound(err) {
@@ -304,6 +313,13 @@ func (r *ClusterReconciler) reconcileDelete(ctx context.Context, cluster *comput
 			}
 		}
 		logger.Info("triggered cluster deletion", "clusterName", name)
+	}
+
+	r.setReadyCondition(cluster, metav1.ConditionFalse, "Deleting", fmt.Sprintf("cluster is %s", cluster.Status.State))
+	if !statusUnchanged(before, cluster.Status) {
+		if err := r.Status().Update(ctx, cluster); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: clusterPollInterval}, nil
