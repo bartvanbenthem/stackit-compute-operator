@@ -33,6 +33,12 @@ type NetworkReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT network when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=networks,verbs=get;list;watch;create;update;patch;delete
@@ -107,6 +113,13 @@ func (r *NetworkReconciler) reconcileCreate(ctx context.Context, network *comput
 			}
 		}
 		logger.Info("adopted existing network", "networkId", id)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, network, func() string { return network.Status.NetworkId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking network before create: %w", err)
+	} else if already {
+		logger.Info("network already created by a concurrent reconcile, skipping duplicate create", "networkId", network.Status.NetworkId)
 		return ctrl.Result{Requeue: true}, nil
 	}
 
@@ -295,10 +308,19 @@ func (r *NetworkReconciler) reconcileDelete(ctx context.Context, network *comput
 		return ctrl.Result{}, fmt.Errorf("checking network before deletion: %w", err)
 	}
 
+	before := *network.Status.DeepCopy()
+	r.applyNetworkStatus(network, current)
+
 	if current.Status != "DELETING" {
 		if err := stackit.DeleteNetwork(ctx, r.StackitClient, projectID, region, networkID); err != nil {
 			if stackit.IsConflict(err) {
 				logger.Info("network not yet deletable, retrying", "networkId", networkID, "reason", err.Error())
+				r.setReadyCondition(network, metav1.ConditionFalse, "Deleting", fmt.Sprintf("network is %s", network.Status.State))
+				if !statusUnchanged(before, network.Status) {
+					if statusErr := r.Status().Update(ctx, network); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
+				}
 				return ctrl.Result{RequeueAfter: pollInterval}, nil
 			}
 			if !stackit.IsNotFound(err) {
@@ -306,6 +328,13 @@ func (r *NetworkReconciler) reconcileDelete(ctx context.Context, network *comput
 			}
 		}
 		logger.Info("triggered network deletion", "networkId", networkID)
+	}
+
+	r.setReadyCondition(network, metav1.ConditionFalse, "Deleting", fmt.Sprintf("network is %s", network.Status.State))
+	if !statusUnchanged(before, network.Status) {
+		if err := r.Status().Update(ctx, network); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: pollInterval}, nil

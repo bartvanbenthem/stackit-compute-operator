@@ -30,6 +30,19 @@ func IsConflict(err error) bool {
 	return false
 }
 
+// IsAlreadyExists reports whether err is a STACKIT API "already exists"
+// error (HTTP 409 with code "AlreadyExists"), e.g. because a create call
+// raced with an earlier reconcile that already created the resource but
+// whose status update has not yet reached the local cache.
+func IsAlreadyExists(err error) bool {
+	var oapiErr *oapierror.GenericOpenAPIError
+	if errors.As(err, &oapiErr) {
+		return oapiErr.StatusCode == http.StatusConflict &&
+			bytes.Contains(oapiErr.Body, []byte("AlreadyExists"))
+	}
+	return false
+}
+
 // IsTransientAuthError reports whether err is STACKIT's token endpoint
 // rejecting the SDK's authentication assertion specifically with "invalid
 // iat". In practice this happens when the local clock is briefly skewed

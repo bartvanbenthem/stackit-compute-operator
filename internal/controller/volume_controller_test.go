@@ -45,10 +45,12 @@ func newVolumeReconciler(t *testing.T, mock *iaas.DefaultAPIServiceMock, objs ..
 	if len(objs) > 0 {
 		builder = builder.WithObjects(objs...)
 	}
+	fakeClient := builder.Build()
 	return &VolumeReconciler{
-		Client:        builder.Build(),
+		Client:        fakeClient,
 		Scheme:        newTestScheme(t),
 		StackitClient: &iaas.APIClient{DefaultAPI: mock},
+		APIReader:     fakeClient,
 	}
 }
 
@@ -144,6 +146,42 @@ func TestVolumeReconcileCreate_Success(t *testing.T) {
 	cond := findReadyCondition(got.Status.Conditions)
 	if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != "Creating" {
 		t.Errorf("Ready condition = %+v, want False/Creating", cond)
+	}
+}
+
+func TestVolumeReconcileCreate_ConcurrentReconcileAlreadyCreated_SkipsDuplicateCreate(t *testing.T) {
+	// The object stored in the API server already has a VolumeId, as if a
+	// concurrent reconcile just created it and wrote status.
+	stored := newTestVolume("vol", func(v *computev1alpha1.Volume) {
+		controllerutil.AddFinalizer(v, volumeFinalizer)
+		v.Status.VolumeId = testVolumeID
+	})
+
+	mock := &iaas.DefaultAPIServiceMock{}
+	createCalled := false
+	createFn := func(r iaas.ApiCreateVolumeRequest) (*iaas.Volume, error) {
+		createCalled = true
+		return nil, nil
+	}
+	mock.CreateVolumeExecuteMock = &createFn
+
+	r := newVolumeReconciler(t, mock, stored)
+
+	// This in-memory copy is stale: it predates the concurrent reconcile's
+	// status write, so its VolumeId still reads as unset.
+	stale := newTestVolume("vol", func(v *computev1alpha1.Volume) {
+		controllerutil.AddFinalizer(v, volumeFinalizer)
+	})
+
+	res, err := r.reconcileCreate(context.Background(), stale, false)
+	if err != nil {
+		t.Fatalf("reconcileCreate() error = %v", err)
+	}
+	if createCalled {
+		t.Error("CreateVolume was called even though the volume was already created concurrently")
+	}
+	if !res.Requeue {
+		t.Errorf("Result = %+v, want Requeue: true", res)
 	}
 }
 

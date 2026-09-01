@@ -103,18 +103,35 @@ func removeFinalizerAndUpdate(ctx context.Context, c client.Client, obj client.O
 }
 
 // demoteTransientAuthError downgrades a transient STACKIT auth token error
-// (see stackit.IsTransientAuthError) from a hard reconcile error to a
-// debug-level log plus a fixed short requeue. Left as a normal error,
+// (see stackit.IsTransientAuthError) from a hard reconcile error to an
+// info-level log plus a fixed short requeue. Left as a normal error,
 // controller-runtime would log it at error level with a stack trace and
 // apply its exponential backoff, even though this specific failure reliably
-// clears on the very next attempt. Logged at V(1) rather than dropped
-// entirely so it's still visible when diagnosing repeated token rejections.
+// clears on the very next attempt. Logged at the default level (not V(1))
+// so it's visible without extra flags - a silent retry loop here previously
+// made real clock-skew problems indistinguishable from "nothing is happening".
 func demoteTransientAuthError(ctx context.Context, result ctrl.Result, err error) (ctrl.Result, error) {
 	if err == nil || !stackit.IsTransientAuthError(err) {
 		return result, err
 	}
-	log.FromContext(ctx).V(1).Info("STACKIT auth token rejected, retrying automatically", "detail", err.Error())
+	log.FromContext(ctx).Info("STACKIT auth token rejected (invalid iat, likely clock skew), retrying automatically", "detail", err.Error())
 	return ctrl.Result{RequeueAfter: pollInterval}, nil
+}
+
+// idAlreadyPresent re-fetches obj directly from the API server, bypassing
+// the informer cache, and reports whether getID (a closure reading obj's
+// now-refreshed status) returns a non-empty ID. reconcileCreate calls this
+// immediately before issuing a create request to STACKIT: unlike the
+// Cluster API (an upsert keyed by name, see stackit.IsAlreadyExists),
+// Server/Network/Volume creates are plain ID-generating POSTs, so two
+// reconciles racing on a stale cached view of Status.<ID> == "" would
+// otherwise each create a separate, orphaned STACKIT resource rather than
+// erroring.
+func idAlreadyPresent(ctx context.Context, reader client.Reader, obj client.Object, getID func() string) (bool, error) {
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return false, err
+	}
+	return getID() != "", nil
 }
 
 // statusUnchanged reports whether a status value snapshotted before

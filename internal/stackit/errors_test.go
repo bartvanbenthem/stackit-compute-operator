@@ -28,6 +28,29 @@ func TestIsNotFound(t *testing.T) {
 	}
 }
 
+func TestIsAlreadyExists(t *testing.T) {
+	alreadyExistsBody := []byte(`{"code":"AlreadyExists","message":"already exists: cluster with name \"clu\""}`)
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil error", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"409 AlreadyExists error", oapierror.NewErrorWithBody(409, "", alreadyExistsBody, nil), true},
+		{"wrapped 409 AlreadyExists error", errWrap{oapierror.NewErrorWithBody(409, "", alreadyExistsBody, nil)}, true},
+		{"unrelated 409 error", oapierror.NewErrorWithBody(409, "", []byte(`{"code":"DependentExists"}`), nil), false},
+		{"404 error", oapierror.NewError(404, "not found"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsAlreadyExists(tt.err); got != tt.want {
+				t.Errorf("IsAlreadyExists(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsTransientAuthError(t *testing.T) {
 	invalidGrantBody := []byte(`{"error":"invalid_grant","error_description":"invalid iat"}`)
 	tests := []struct {

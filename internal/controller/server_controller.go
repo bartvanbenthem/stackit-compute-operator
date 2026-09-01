@@ -43,6 +43,12 @@ type ServerReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT server when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=servers,verbs=get;list;watch;create;update;patch;delete
@@ -87,9 +93,17 @@ func (r *ServerReconciler) reconcile(ctx context.Context, server *computev1alpha
 
 func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev1alpha1.Server) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, server, func() string { return server.Status.ServerId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking server before create: %w", err)
+	} else if already {
+		logger.Info("server already created by a concurrent reconcile, skipping duplicate create", "serverId", server.Status.ServerId)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	before := *server.Status.DeepCopy()
 
-	imageID, imageReady, err := r.resolveImageRef(ctx, server)
+	imageID, imageReady, err := r.resolveImage(server)
 	if err != nil {
 		return r.invalidReference(ctx, server, before, err)
 	}
@@ -103,7 +117,7 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 	}
 
 	if !imageReady || !networkReady || !bootVolumeReady {
-		r.setReadyCondition(server, metav1.ConditionFalse, "WaitingForReference", "waiting for referenced Image/Network/Volume to become ready")
+		r.setReadyCondition(server, metav1.ConditionFalse, "WaitingForReference", "waiting for referenced Network/Volume to become ready")
 		if !statusUnchanged(before, server.Status) {
 			if statusErr := r.Status().Update(ctx, server); statusErr != nil {
 				return ctrl.Result{}, statusErr
@@ -142,39 +156,22 @@ func (r *ServerReconciler) reconcileCreate(ctx context.Context, server *computev
 	return ctrl.Result{RequeueAfter: serverPollInterval}, nil
 }
 
-// resolveImageRef resolves the server's desired image ID from exactly one
-// of spec.imageId or spec.imageRef. ready is false (with a nil error) when
-// a ref is set but the referenced Image doesn't exist yet or hasn't
-// populated status.imageId yet - that's a normal, retryable wait, not an
-// error. Neither is required when spec.bootVolumeRef is set, since the
-// server then boots from that existing Volume instead of an image.
-func (r *ServerReconciler) resolveImageRef(ctx context.Context, server *computev1alpha1.Server) (id string, ready bool, err error) {
-	if server.Spec.ImageId != "" && server.Spec.ImageRef != nil {
-		return "", false, fmt.Errorf("spec.imageId and spec.imageRef are mutually exclusive")
-	}
-	if server.Spec.ImageRef != nil {
-		image := &computev1alpha1.Image{}
-		key := client.ObjectKey{Namespace: server.Namespace, Name: server.Spec.ImageRef.Name}
-		if err := r.Get(ctx, key, image); err != nil {
-			if apierrors.IsNotFound(err) {
-				return "", false, nil
-			}
-			return "", false, err
-		}
-		return image.Status.ImageId, image.Status.ImageId != "", nil
-	}
+// resolveImage resolves the server's desired image ID from spec.imageId.
+// Not required when spec.bootVolumeRef is set, since the server then boots
+// from that existing Volume instead of an image.
+func (r *ServerReconciler) resolveImage(server *computev1alpha1.Server) (id string, ready bool, err error) {
 	if server.Spec.ImageId != "" {
 		return server.Spec.ImageId, true, nil
 	}
 	if server.Spec.BootVolumeRef != nil {
 		return "", true, nil
 	}
-	return "", false, fmt.Errorf("one of spec.imageId or spec.imageRef must be set")
+	return "", false, fmt.Errorf("spec.imageId must be set unless spec.bootVolumeRef is set")
 }
 
 // resolveNetworkRef resolves the server's desired network ID from exactly
 // one of spec.networkId or spec.networkRef, with the same not-ready-yet
-// semantics as resolveImageRef.
+// semantics as resolveBootVolumeRef.
 func (r *ServerReconciler) resolveNetworkRef(ctx context.Context, server *computev1alpha1.Server) (id string, ready bool, err error) {
 	if server.Spec.NetworkId != "" && server.Spec.NetworkRef != nil {
 		return "", false, fmt.Errorf("spec.networkId and spec.networkRef are mutually exclusive")
@@ -392,11 +389,21 @@ func (r *ServerReconciler) reconcileDelete(ctx context.Context, server *computev
 		return ctrl.Result{}, fmt.Errorf("checking server before deletion: %w", err)
 	}
 
+	before := *server.Status.DeepCopy()
+	r.applyServerStatus(server, current)
+
 	if derefString(current.Status) != "DELETING" {
 		if err := stackit.DeleteServer(ctx, r.StackitClient, projectID, region, serverID); err != nil && !stackit.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("deleting server: %w", err)
 		}
 		logger.Info("triggered server deletion", "serverId", serverID)
+	}
+
+	r.setReadyCondition(server, metav1.ConditionFalse, "Deleting", fmt.Sprintf("server is %s", server.Status.State))
+	if !statusUnchanged(before, server.Status) {
+		if err := r.Status().Update(ctx, server); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: serverPollInterval}, nil

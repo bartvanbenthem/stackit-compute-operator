@@ -36,6 +36,12 @@ type VolumeReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	StackitClient *iaas.APIClient
+
+	// APIReader reads directly from the API server, bypassing the informer
+	// cache. Used by reconcileCreate to guard against creating a duplicate,
+	// orphaned STACKIT volume when a concurrent reconcile's status update
+	// hasn't yet reached the cache.
+	APIReader client.Reader
 }
 
 // +kubebuilder:rbac:groups=compute.sostackit.dev,resources=volumes,verbs=get;list;watch;create;update;patch;delete
@@ -110,6 +116,13 @@ func (r *VolumeReconciler) reconcileCreate(ctx context.Context, volume *computev
 			}
 		}
 		logger.Info("adopted existing volume", "volumeId", id)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if already, err := idAlreadyPresent(ctx, r.APIReader, volume, func() string { return volume.Status.VolumeId }); err != nil {
+		return ctrl.Result{}, fmt.Errorf("re-checking volume before create: %w", err)
+	} else if already {
+		logger.Info("volume already created by a concurrent reconcile, skipping duplicate create", "volumeId", volume.Status.VolumeId)
 		return ctrl.Result{Requeue: true}, nil
 	}
 
@@ -299,10 +312,19 @@ func (r *VolumeReconciler) reconcileDelete(ctx context.Context, volume *computev
 		return ctrl.Result{}, fmt.Errorf("checking volume before deletion: %w", err)
 	}
 
+	before := *volume.Status.DeepCopy()
+	r.applyVolumeStatus(volume, current)
+
 	if derefString(current.Status) != "DELETING" {
 		if err := stackit.DeleteVolume(ctx, r.StackitClient, projectID, region, volumeID); err != nil {
 			if stackit.IsConflict(err) {
 				logger.Info("volume not yet deletable, retrying", "volumeId", volumeID, "reason", err.Error())
+				r.setReadyCondition(volume, metav1.ConditionFalse, "Deleting", fmt.Sprintf("volume is %s", volume.Status.State))
+				if !statusUnchanged(before, volume.Status) {
+					if statusErr := r.Status().Update(ctx, volume); statusErr != nil {
+						return ctrl.Result{}, statusErr
+					}
+				}
 				return ctrl.Result{RequeueAfter: pollInterval}, nil
 			}
 			if !stackit.IsNotFound(err) {
@@ -310,6 +332,13 @@ func (r *VolumeReconciler) reconcileDelete(ctx context.Context, volume *computev
 			}
 		}
 		logger.Info("triggered volume deletion", "volumeId", volumeID)
+	}
+
+	r.setReadyCondition(volume, metav1.ConditionFalse, "Deleting", fmt.Sprintf("volume is %s", volume.Status.State))
+	if !statusUnchanged(before, volume.Status) {
+		if err := r.Status().Update(ctx, volume); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{RequeueAfter: pollInterval}, nil

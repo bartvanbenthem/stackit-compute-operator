@@ -59,52 +59,6 @@ func TestIntegration_VolumeLifecycle(t *testing.T) {
 	})
 }
 
-func TestIntegration_ImageLifecycle(t *testing.T) {
-	ctx := context.Background()
-	name := types.NamespacedName{Name: "it-image", Namespace: "default"}
-
-	image := &computev1alpha1.Image{
-		ObjectMeta: metav1.ObjectMeta{Name: name.Name, Namespace: name.Namespace},
-		Spec: computev1alpha1.ImageSpec{
-			ProjectId:  "11111111-1111-1111-1111-111111111111",
-			Region:     "eu01",
-			DiskFormat: "qcow2",
-		},
-	}
-	if err := k8sClient.Create(ctx, image); err != nil {
-		t.Fatalf("creating Image: %v", err)
-	}
-
-	eventually(t, 30*time.Second, "image becomes Ready=True/Available", func() bool {
-		got := &computev1alpha1.Image{}
-		if err := k8sClient.Get(ctx, name, got); err != nil {
-			return false
-		}
-		if got.Status.ImageId == "" {
-			return false
-		}
-		cond := meta.FindStatusCondition(got.Status.Conditions, readyConditionType)
-		return cond != nil && cond.Status == metav1.ConditionTrue && cond.Reason == "Available"
-	})
-
-	got := &computev1alpha1.Image{}
-	if err := k8sClient.Get(ctx, name, got); err != nil {
-		t.Fatalf("getting Image: %v", err)
-	}
-	if got.Status.UploadUrl == "" {
-		t.Error("Status.UploadUrl = empty, want non-empty")
-	}
-	if err := k8sClient.Delete(ctx, got); err != nil {
-		t.Fatalf("deleting Image: %v", err)
-	}
-
-	eventually(t, 30*time.Second, "image object is fully removed", func() bool {
-		cur := &computev1alpha1.Image{}
-		err := k8sClient.Get(ctx, name, cur)
-		return errors.IsNotFound(err)
-	})
-}
-
 func TestIntegration_NetworkLifecycle(t *testing.T) {
 	ctx := context.Background()
 	name := types.NamespacedName{Name: "it-network", Namespace: "default"}

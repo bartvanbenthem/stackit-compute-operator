@@ -42,10 +42,12 @@ func newNetworkReconciler(t *testing.T, mock *iaas.DefaultAPIServiceMock, objs .
 	if len(objs) > 0 {
 		builder = builder.WithObjects(objs...)
 	}
+	fakeClient := builder.Build()
 	return &NetworkReconciler{
-		Client:        builder.Build(),
+		Client:        fakeClient,
 		Scheme:        newTestScheme(t),
 		StackitClient: &iaas.APIClient{DefaultAPI: mock},
+		APIReader:     fakeClient,
 	}
 }
 
@@ -115,6 +117,42 @@ func TestNetworkReconcileCreate_Success(t *testing.T) {
 	got := getNetwork(t, r.Client, network.Name)
 	if got.Status.NetworkId != testNetID {
 		t.Errorf("Status.NetworkId = %q, want %q", got.Status.NetworkId, testNetID)
+	}
+}
+
+func TestNetworkReconcileCreate_ConcurrentReconcileAlreadyCreated_SkipsDuplicateCreate(t *testing.T) {
+	// The object stored in the API server already has a NetworkId, as if a
+	// concurrent reconcile just created it and wrote status.
+	stored := newTestNetwork("net", func(n *computev1alpha1.Network) {
+		controllerutil.AddFinalizer(n, networkFinalizer)
+		n.Status.NetworkId = testNetID
+	})
+
+	mock := &iaas.DefaultAPIServiceMock{}
+	createCalled := false
+	createFn := func(r iaas.ApiCreateNetworkRequest) (*iaas.Network, error) {
+		createCalled = true
+		return nil, nil
+	}
+	mock.CreateNetworkExecuteMock = &createFn
+
+	r := newNetworkReconciler(t, mock, stored)
+
+	// This in-memory copy is stale: it predates the concurrent reconcile's
+	// status write, so its NetworkId still reads as unset.
+	stale := newTestNetwork("net", func(n *computev1alpha1.Network) {
+		controllerutil.AddFinalizer(n, networkFinalizer)
+	})
+
+	res, err := r.reconcileCreate(context.Background(), stale, false)
+	if err != nil {
+		t.Fatalf("reconcileCreate() error = %v", err)
+	}
+	if createCalled {
+		t.Error("CreateNetwork was called even though the network was already created concurrently")
+	}
+	if !res.Requeue {
+		t.Errorf("Result = %+v, want Requeue: true", res)
 	}
 }
 

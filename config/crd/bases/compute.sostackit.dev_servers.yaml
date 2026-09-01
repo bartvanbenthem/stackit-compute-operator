@@ -66,9 +66,9 @@ spec:
                 type: string
               bootVolume:
                 description: |-
-                  BootVolume configures the server's root volume created from ImageId
-                  or ImageRef. Ignored (Size/PerformanceClass) when BootVolumeRef is
-                  set, since the volume already exists in that case.
+                  BootVolume configures the server's root volume created from ImageId.
+                  Ignored (Size/PerformanceClass) when BootVolumeRef is set, since the
+                  volume already exists in that case.
                 properties:
                   deleteOnTermination:
                     description: |-
@@ -89,9 +89,8 @@ spec:
               bootVolumeRef:
                 description: |-
                   BootVolumeRef references an existing Volume resource to boot from
-                  instead of creating a new boot volume from ImageId/ImageRef. The
-                  referenced Volume must already exist (be Ready) before the server can
-                  be created.
+                  instead of creating a new boot volume from ImageId. The referenced
+                  Volume must already exist (be Ready) before the server can be created.
                 properties:
                   name:
                     description: Name of the referenced object.
@@ -103,22 +102,10 @@ spec:
               imageId:
                 description: |-
                   ImageId is the UUID of the image the boot volume is created from.
-                  Mutually exclusive with ImageRef; exactly one of the two must be set.
+                  Required unless BootVolumeRef is set, since the server then boots from
+                  that existing Volume instead of an image.
                 pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
                 type: string
-              imageRef:
-                description: |-
-                  ImageRef references an Image resource whose status.imageId is used
-                  instead of ImageId. Mutually exclusive with ImageId; exactly one of
-                  the two must be set.
-                properties:
-                  name:
-                    description: Name of the referenced object.
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                type: object
               keypairName:
                 description: |-
                   KeypairName is the name of an existing SSH keypair to inject into the

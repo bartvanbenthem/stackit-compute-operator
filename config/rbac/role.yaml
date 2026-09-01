@@ -8,7 +8,6 @@ rules:
   - compute.sostackit.dev
   resources:
   - clusters
-  - images
   - networks
   - servers
   - volumes
@@ -24,7 +23,6 @@ rules:
   - compute.sostackit.dev
   resources:
   - clusters/finalizers
-  - images/finalizers
   - networks/finalizers
   - servers/finalizers
   - volumes/finalizers
@@ -34,7 +32,6 @@ rules:
   - compute.sostackit.dev
   resources:
   - clusters/status
-  - images/status
   - networks/status
   - servers/status
   - volumes/status

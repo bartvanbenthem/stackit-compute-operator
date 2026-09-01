@@ -1,6 +1,5 @@
 resources:
   - bases/compute.sostackit.dev_servers.yaml
   - bases/compute.sostackit.dev_volumes.yaml
-  - bases/compute.sostackit.dev_images.yaml
   - bases/compute.sostackit.dev_networks.yaml
   - bases/compute.sostackit.dev_clusters.yaml

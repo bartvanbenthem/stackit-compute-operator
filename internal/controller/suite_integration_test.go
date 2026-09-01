@@ -39,7 +39,6 @@ var (
 	testScheme     *runtime.Scheme
 	cancelMgr      context.CancelFunc
 	volumeBackend  *fakeVolumeBackend
-	imageBackend   *fakeImageBackend
 	networkBackend *fakeNetworkBackend
 	clusterBackend *fakeClusterBackend
 )
@@ -77,6 +76,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: backend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()
@@ -88,17 +88,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: volumeBackend.mock()},
-	}).SetupWithManager(mgr); err != nil {
-		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
-		_ = testEnv.Stop()
-		os.Exit(1)
-	}
-
-	imageBackend = newFakeImageBackend()
-	if err := (&ImageReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		StackitClient: &iaas.APIClient{DefaultAPI: imageBackend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()
@@ -110,6 +100,7 @@ func TestMain(m *testing.M) {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		StackitClient: &iaas.APIClient{DefaultAPI: networkBackend.mock()},
+		APIReader:     mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		fmt.Fprintf(os.Stderr, "setting up controller: %v\n", err)
 		_ = testEnv.Stop()

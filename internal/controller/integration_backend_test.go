@@ -233,101 +233,6 @@ func (b *fakeVolumeBackend) existsLocked() bool {
 	return b.exists
 }
 
-// fakeImageBackend is fakeStackitBackend's counterpart for Image. Real
-// STACKIT leaves a created image in CREATING until its bytes are uploaded
-// out-of-band (see README's "Images and the upload-bytes gap"); this fake
-// auto-transitions to AVAILABLE on the first Get instead, since exercising
-// that manual step isn't feasible in an automated test and the reconciler
-// mechanics being tested here (finalizer/status/drift wiring) don't depend
-// on it.
-type fakeImageBackend struct {
-	mu sync.Mutex
-
-	exists bool
-	id     string
-	status string
-
-	deleteRequested bool
-	getsSinceDelete int
-}
-
-func newFakeImageBackend() *fakeImageBackend {
-	return &fakeImageBackend{}
-}
-
-func (b *fakeImageBackend) seedExisting(id string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.exists = true
-	b.id = id
-	b.status = "AVAILABLE"
-	b.deleteRequested = false
-	b.getsSinceDelete = 0
-}
-
-func (b *fakeImageBackend) mock() *iaas.DefaultAPIServiceMock {
-	mock := &iaas.DefaultAPIServiceMock{}
-
-	createFn := func(r iaas.ApiCreateImageRequest) (*iaas.ImageCreateResponse, error) {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		b.exists = true
-		b.id = fakeStackitImageID
-		b.status = "CREATING"
-		b.deleteRequested = false
-		b.getsSinceDelete = 0
-		return &iaas.ImageCreateResponse{Id: b.id, UploadUrl: "https://upload.example.com"}, nil
-	}
-	mock.CreateImageExecuteMock = &createFn
-
-	getFn := func(r iaas.ApiGetImageRequest) (*iaas.Image, error) {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		if !b.exists {
-			return nil, oapierror.NewError(404, "image not found")
-		}
-		if b.deleteRequested {
-			b.getsSinceDelete++
-			if b.getsSinceDelete >= 1 {
-				b.exists = false
-				return nil, oapierror.NewError(404, "image not found")
-			}
-		}
-		if b.status == "CREATING" {
-			b.status = "AVAILABLE"
-		}
-		return b.snapshotLocked(), nil
-	}
-	mock.GetImageExecuteMock = &getFn
-
-	deleteFn := func(r iaas.ApiDeleteImageRequest) error {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		b.deleteRequested = true
-		b.status = "DELETING"
-		return nil
-	}
-	mock.DeleteImageExecuteMock = &deleteFn
-
-	return mock
-}
-
-func (b *fakeImageBackend) snapshotLocked() *iaas.Image {
-	return &iaas.Image{
-		Id:         utils.Ptr(b.id),
-		Name:       "it-image",
-		DiskFormat: "qcow2",
-		Status:     utils.Ptr(b.status),
-		Labels:     map[string]interface{}{},
-	}
-}
-
-func (b *fakeImageBackend) existsLocked() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.exists
-}
-
 // fakeNetworkBackend is fakeStackitBackend's counterpart for Network.
 type fakeNetworkBackend struct {
 	mu sync.Mutex
@@ -418,7 +323,6 @@ func (b *fakeNetworkBackend) existsLocked() bool {
 
 const (
 	fakeStackitVolumeID  = "aaaaaaaa-bbbb-cccc-dddd-111111111111"
-	fakeStackitImageID   = "aaaaaaaa-bbbb-cccc-dddd-222222222222"
 	fakeStackitNetworkID = "aaaaaaaa-bbbb-cccc-dddd-333333333333"
 )
 
